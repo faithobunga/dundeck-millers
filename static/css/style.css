@@ -1,0 +1,405 @@
+/* Dunedeck Millers - Custom Styles with Company Colors (Red, Green, White) */
+
+:root {
+    --dm-red: #dc3545;
+    --dm-green: #198754;
+    --dm-dark-green: #146c43;
+    --dm-white: #ffffff;
+    --dm-light-gray: #f8f9fa;
+    --dm-dark: #2d3748;
+}
+
+body {
+    background-color: var(--dm-light-gray);
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* Navbar - Company Colors */
+.navbar.bg-primary {
+    background: linear-gradient(135deg, var(--dm-green) 0%, var(--dm-dark-green) 100%) !important;
+}
+
+/* Card styling */
+.card {
+    border: none;
+    border-radius: 12px;
+    transition: transform 0.2s, box-shadow 0.2s;
+    background: white;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+}
+
+.card-header {
+    border-radius: 12px 12px 0 0 !important;
+    border-bottom: 1px solid rgba(0,0,0,0.05);
+}
+
+/* Button styling */
+.btn {
+    border-radius: 8px;
+    font-weight: 500;
+    transition: all 0.2s;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, var(--dm-green) 0%, var(--dm-dark-green) 100%);
+    border: none;
+}
+
+.btn-primary:hover {
+    background: linear-gradient(135deg, var(--dm-dark-green) 0%, #0f5132 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(25, 135, 84, 0.4);
+}
+
+.btn-danger {
+    background: linear-gradient(135deg, var(--dm-red) 0%, #b02a37 100%);
+    border: none;
+}
+
+.btn-danger:hover {
+    background: linear-gradient(135deg, #b02a37 0%, #8b1f2b 100%);
+}
+
+.btn-success {
+    background: linear-gradient(135deg, var(--dm-green) 0%, var(--dm-dark-green) 100%);
+    border: none;
+}
+
+/* Form controls */
+.form-control, .form-select {
+    border-radius: 8px;
+    border: 1px solid #dee2e6;
+    transition: all 0.2s;
+}
+
+.form-control:focus, .form-select:focus {
+    border-color: var(--dm-green);
+    box-shadow: 0 0 0 0.2rem rgba(25, 135, 84, 0.25);
+}
+
+/* Table styling */
+.table {
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+.table thead th {
+    border-bottom: 2px solid #dee2e6;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.85rem;
+    letter-spacing: 0.5px;
+    background-color: var(--dm-light-gray);
+}
+
+.table tbody tr {
+    transition: all 0.2s;
+}
+
+.table tbody tr:hover {
+    background-color: rgba(25, 135, 84, 0.05);
+}
+
+/* Badge styling */
+.badge {
+    padding: 0.5em 0.8em;
+    font-weight: 500;
+    border-radius: 6px;
+}
+
+/* Sheet status badges */
+.badge-in-progress {
+    background: linear-gradient(135deg, var(--dm-green) 0%, var(--dm-dark-green) 100%);
+    color: white;
+}
+
+.badge-closed {
+    background: linear-gradient(135deg, #6c757d 0%, #495057 100%);
+    color: white;
+}
+
+/* Alert styling */
+.alert {
+    border-radius: 10px;
+    border: none;
+}
+
+.alert-success {
+    background-color: rgba(25, 135, 84, 0.1);
+    border-left: 4px solid var(--dm-green);
+    color: var(--dm-dark-green);
+}
+
+.alert-danger {
+    background-color: rgba(220, 53, 69, 0.1);
+    border-left: 4px solid var(--dm-red);
+    color: #b02a37;
+}
+
+.alert-warning {
+    background-color: rgba(255, 193, 7, 0.1);
+    border-left: 4px solid #ffc107;
+    color: #997404;
+}
+
+.alert-info {
+    background-color: rgba(25, 135, 84, 0.1);
+    border-left: 4px solid var(--dm-green);
+    color: var(--dm-dark-green);
+}
+
+/* Summary cards - Company Colors */
+.bg-primary {
+    background: linear-gradient(135deg, var(--dm-green) 0%, var(--dm-dark-green) 100%) !important;
+}
+
+.bg-success {
+    background: linear-gradient(135deg, var(--dm-green) 0%, var(--dm-dark-green) 100%) !important;
+}
+
+.bg-warning {
+    background: linear-gradient(135deg, var(--dm-red) 0%, #b02a37 100%) !important;
+}
+
+.bg-info {
+    background: linear-gradient(135deg, var(--dm-green) 0%, var(--dm-dark-green) 100%) !important;
+}
+
+.bg-danger {
+    background: linear-gradient(135deg, var(--dm-red) 0%, #b02a37 100%) !important;
+}
+
+/* Sheet cards */
+.sheet-card {
+    cursor: pointer;
+    transition: all 0.3s;
+    border-left: 4px solid var(--dm-green);
+}
+
+.sheet-card:hover {
+    box-shadow: 0 8px 16px rgba(25, 135, 84, 0.2);
+    transform: translateY(-4px);
+}
+
+.sheet-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+    border-bottom: 1px solid rgba(0,0,0,0.05);
+}
+
+/* Product type colors - Using company palette */
+.product-maize-grains {
+    border-left: 4px solid var(--dm-green);
+}
+
+.product-maize-germ {
+    border-left: 4px solid var(--dm-dark-green);
+}
+
+.product-animal-feeds {
+    border-left: 4px solid var(--dm-red);
+}
+
+.product-other {
+    border-left: 4px solid #6c757d;
+}
+
+/* Radio button cards - Company colors */
+.btn-check:checked + .btn-outline-primary {
+    background: linear-gradient(135deg, var(--dm-green) 0%, var(--dm-dark-green) 100%);
+    border-color: var(--dm-green);
+    color: white;
+}
+
+.btn-outline-primary {
+    border-color: var(--dm-green);
+    color: var(--dm-green);
+}
+
+.btn-outline-primary:hover {
+    background-color: rgba(25, 135, 84, 0.1);
+    border-color: var(--dm-green);
+    color: var(--dm-green);
+}
+
+.btn-check:checked + .btn-outline-success {
+    background: linear-gradient(135deg, var(--dm-green) 0%, var(--dm-dark-green) 100%);
+    border-color: var(--dm-green);
+}
+
+.btn-outline-success {
+    border-color: var(--dm-green);
+    color: var(--dm-green);
+}
+
+.btn-outline-success:hover {
+    background-color: rgba(25, 135, 84, 0.1);
+}
+
+/* Modal */
+.modal-content {
+    border-radius: 12px;
+    border: none;
+}
+
+.modal-header {
+    border-radius: 12px 12px 0 0;
+    background: linear-gradient(135deg, var(--dm-green) 0%, var(--dm-dark-green) 100%);
+    color: white;
+}
+
+.modal-header .btn-close {
+    filter: brightness(0) invert(1);
+}
+
+/* Login page */
+.card-body {
+    border-radius: 12px;
+}
+
+/* Animations */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.card, .alert {
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+/* Stats cards with icons */
+.stat-icon {
+    width: 60px;
+    height: 60px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    margin-bottom: 12px;
+}
+
+.stat-icon.green {
+    background: rgba(25, 135, 84, 0.1);
+    color: var(--dm-green);
+}
+
+.stat-icon.red {
+    background: rgba(220, 53, 69, 0.1);
+    color: var(--dm-red);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .card-body {
+        padding: 1rem;
+    }
+    
+    .table {
+        font-size: 0.9rem;
+    }
+    
+    h2 {
+        font-size: 1.5rem;
+    }
+    
+    .btn-group-sm .btn {
+        font-size: 0.8rem;
+    }
+}
+
+/* Print styles */
+@media print {
+    .navbar, .btn, .alert, .modal {
+        display: none !important;
+    }
+    
+    .card {
+        box-shadow: none !important;
+        border: 1px solid #dee2e6 !important;
+    }
+}
+
+/* Role badges - Company colors */
+.role-badge {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+}
+
+.role-worker {
+    background-color: var(--dm-green);
+    color: white;
+}
+
+.role-manager {
+    background-color: var(--dm-red);
+    color: white;
+}
+
+.role-director {
+    background-color: #6c757d;
+    color: white;
+}
+
+.role-admin {
+    background-color: var(--dm-red);
+    color: white;
+}
+
+/* Empty state styling */
+.empty-state {
+    padding: 60px 20px;
+    text-align: center;
+    color: #6c757d;
+}
+
+.empty-state i {
+    font-size: 4rem;
+    color: #dee2e6;
+    margin-bottom: 20px;
+}
+
+/* Real-time indicator */
+.live-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    background: rgba(25, 135, 84, 0.1);
+    border: 1px solid rgba(25, 135, 84, 0.3);
+    border-radius: 20px;
+    font-size: 12px;
+    color: var(--dm-green);
+    font-weight: 600;
+}
+
+.live-indicator::before {
+    content: '';
+    width: 8px;
+    height: 8px;
+    background-color: var(--dm-green);
+    border-radius: 50%;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+}

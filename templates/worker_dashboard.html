@@ -1,0 +1,260 @@
+{% extends "base.html" %}
+
+{% block title %}Worker Dashboard - Dunedeck Millers{% endblock %}
+
+{% block content %}
+<!-- Header -->
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h2 class="fw-bold">
+            <i class="bi bi-speedometer2"></i> Worker Dashboard
+            <span class="live-indicator">LIVE</span>
+        </h2>
+        <p class="text-muted mb-0">
+            {{ current_user.name }} • Today: {{ today.strftime('%B %d, %Y') }}
+        </p>
+    </div>
+    <div class="col-md-4 text-md-end">
+        <button class="btn btn-primary btn-lg" data-bs-toggle="modal" data-bs-target="#createSheetModal">
+            <i class="bi bi-plus-circle"></i> New Sheet
+        </button>
+    </div>
+</div>
+
+<!-- Quick Stats -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="stat-icon green">
+                        <i class="bi bi-file-text"></i>
+                    </div>
+                    <div class="ms-3">
+                        <h6 class="text-muted mb-1">Active Sheets</h6>
+                        <h3 class="mb-0">{{ sheet_data|selectattr('sheet.status', 'equalto', 'In Progress')|list|length }}</h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="stat-icon green">
+                        <i class="bi bi-check-circle"></i>
+                    </div>
+                    <div class="ms-3">
+                        <h6 class="text-muted mb-1">Completed</h6>
+                        <h3 class="mb-0">{{ sheet_data|selectattr('sheet.status', 'equalto', 'Closed')|list|length }}</h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="stat-icon green">
+                        <i class="bi bi-boxes"></i>
+                    </div>
+                    <div class="ms-3">
+                        <h6 class="text-muted mb-1">Total Cages</h6>
+                        <h3 class="mb-0">{{ total_all_cages }}</h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="stat-icon red">
+                        <i class="bi bi-speedometer"></i>
+                    </div>
+                    <div class="ms-3">
+                        <h6 class="text-muted mb-1">Total Weight</h6>
+                        <h3 class="mb-0">{{ "%.0f"|format(total_all_weight) }}<small class="text-muted"> kg</small></h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Sheets Grid -->
+{% if sheet_data %}
+<h5 class="mb-3">
+    <i class="bi bi-folder2-open"></i> My Sheets
+    <small class="text-muted">({{ sheet_data|length }})</small>
+</h5>
+<div class="row">
+    {% for data in sheet_data %}
+    <div class="col-md-6 col-lg-4 mb-4">
+        <div class="card sheet-card product-{{ data.sheet.product_type.lower().replace(' ', '-') }}" 
+             onclick="window.location='{{ url_for('view_sheet', sheet_id=data.sheet.id) }}'">
+            <div class="card-header bg-light">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="mb-0">
+                            <i class="bi bi-box-seam"></i> {{ data.sheet.product_type }}
+                        </h5>
+                        <small class="text-muted">
+                            <i class="bi bi-calendar3"></i> {{ data.sheet.sheet_date.strftime('%b %d, %Y') }}
+                        </small>
+                    </div>
+                    {% if data.sheet.status == 'In Progress' %}
+                    <span class="badge badge-in-progress">
+                        <i class="bi bi-clock-history"></i> In Progress
+                    </span>
+                    {% else %}
+                    <span class="badge badge-closed">
+                        <i class="bi bi-lock"></i> Closed
+                    </span>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="row text-center mb-3">
+                    <div class="col-4">
+                        <div class="stat-value">
+                            <h3 class="mb-0" style="color: var(--dm-green);">{{ data.total_cages }}</h3>
+                            <small class="text-muted">Cages</small>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="stat-value">
+                            <h3 class="mb-0" style="color: var(--dm-green);">{{ "%.1f"|format(data.total_weight) }}</h3>
+                            <small class="text-muted">KG</small>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="stat-value">
+                            <h3 class="mb-0" style="color: var(--dm-red);">{{ "%.2f"|format(data.total_bags) }}</h3>
+                            <small class="text-muted">Bags ({{ data.bag_weight }}kg)</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="d-flex justify-content-between align-items-center">
+                    <small class="text-muted">
+                        <i class="bi bi-clock"></i> {{ data.sheet.created_at.strftime('%I:%M %p') }}
+                    </small>
+                    {% if data.sheet.status == 'In Progress' %}
+                    <span class="badge bg-success">
+                        <i class="bi bi-pencil"></i> Editable
+                    </span>
+                    {% else %}
+                    <span class="badge bg-secondary">
+                        <i class="bi bi-eye"></i> View Only
+                    </span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="empty-state">
+    <i class="bi bi-inbox"></i>
+    <h4 class="mt-3">No sheets yet</h4>
+    <p class="text-muted mb-4">Start by creating your first intake sheet</p>
+    <button class="btn btn-primary btn-lg" data-bs-toggle="modal" data-bs-target="#createSheetModal">
+        <i class="bi bi-plus-circle"></i> Create First Sheet
+    </button>
+</div>
+{% endif %}
+
+<!-- Create Sheet Modal -->
+<div class="modal fade" id="createSheetModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-plus-circle"></i> Create New Intake Sheet
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('create_sheet') }}">
+                <div class="modal-body">
+                    <p class="text-muted mb-4">
+                        Select the product type for this intake sheet. You can add multiple entries to this sheet.
+                    </p>
+                    <label class="form-label fw-semibold">Product Type</label>
+                    <div class="row g-3">
+                        <div class="col-6">
+                            <input type="radio" class="btn-check" name="product_type" 
+                                   id="prod1" value="Maize Grains" required>
+                            <label class="btn btn-outline-success w-100 py-3" for="prod1">
+                                <i class="bi bi-box"></i><br>
+                                <strong>Maize Grains</strong><br>
+                                <small class="text-muted">90kg/bag</small>
+                            </label>
+                        </div>
+                        <div class="col-6">
+                            <input type="radio" class="btn-check" name="product_type" 
+                                   id="prod2" value="Maize Germ">
+                            <label class="btn btn-outline-success w-100 py-3" for="prod2">
+                                <i class="bi bi-box"></i><br>
+                                <strong>Maize Germ</strong><br>
+                                <small class="text-muted">90kg/bag</small>
+                            </label>
+                        </div>
+                        <div class="col-6">
+                            <input type="radio" class="btn-check" name="product_type" 
+                                   id="prod3" value="Animal Feeds">
+                            <label class="btn btn-outline-success w-100 py-3" for="prod3">
+                                <i class="bi bi-box"></i><br>
+                                <strong>Animal Feeds</strong><br>
+                                <small class="text-muted">50kg/bag</small>
+                            </label>
+                        </div>
+                        <div class="col-6">
+                            <input type="radio" class="btn-check" name="product_type" 
+                                   id="prod4" value="Other">
+                            <label class="btn btn-outline-success w-100 py-3" for="prod4">
+                                <i class="bi bi-box"></i><br>
+                                <strong>Other</strong><br>
+                                <small class="text-muted">50kg/bag</small>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-plus"></i> Create Sheet
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Auto-refresh every 30 seconds to show real-time updates
+setInterval(function() {
+    // Only reload if there are active sheets
+    {% if sheet_data|selectattr('sheet.status', 'equalto', 'In Progress')|list|length > 0 %}
+    location.reload();
+    {% endif %}
+}, 30000);
+
+// Add smooth transitions when clicking cards
+document.querySelectorAll('.sheet-card').forEach(card => {
+    card.style.cursor = 'pointer';
+    card.addEventListener('mouseenter', function() {
+        this.style.transform = 'translateY(-8px)';
+    });
+    card.addEventListener('mouseleave', function() {
+        this.style.transform = 'translateY(0)';
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+
+{% block title %}Configure Session - Dunedeck Millers{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6">
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0"><i class="bi bi-gear"></i> Session Configuration</h4>
+            </div>
+            <div class="card-body p-4">
+                <p class="text-muted mb-4">
+                    Select your product category and intake type for this session. 
+                    These settings will apply to all entries you make until you change them.
+                </p>
+                
+                <form method="POST" action="{{ url_for('configure_session') }}">
+                    <div class="mb-4">
+                        <label class="form-label fw-semibold">Product Category</label>
+                        <div class="row g-3">
+                            <div class="col-6">
+                                <input type="radio" class="btn-check" name="product_category" 
+                                       id="cat1" value="Maize Grains" required 
+                                       {% if session.get('product_category') == 'Maize Grains' %}checked{% endif %}>
+                                <label class="btn btn-outline-primary w-100 py-3" for="cat1">
+                                    <i class="bi bi-box"></i><br>Maize Grains
+                                </label>
+                            </div>
+                            <div class="col-6">
+                                <input type="radio" class="btn-check" name="product_category" 
+                                       id="cat2" value="Maize Germ"
+                                       {% if session.get('product_category') == 'Maize Germ' %}checked{% endif %}>
+                                <label class="btn btn-outline-primary w-100 py-3" for="cat2">
+                                    <i class="bi bi-box"></i><br>Maize Germ
+                                </label>
+                            </div>
+                            <div class="col-6">
+                                <input type="radio" class="btn-check" name="product_category" 
+                                       id="cat3" value="Animal Feeds"
+                                       {% if session.get('product_category') == 'Animal Feeds' %}checked{% endif %}>
+                                <label class="btn btn-outline-primary w-100 py-3" for="cat3">
+                                    <i class="bi bi-box"></i><br>Animal Feeds
+                                </label>
+                            </div>
+                            <div class="col-6">
+                                <input type="radio" class="btn-check" name="product_category" 
+                                       id="cat4" value="Other"
+                                       {% if session.get('product_category') == 'Other' %}checked{% endif %}>
+                                <label class="btn btn-outline-primary w-100 py-3" for="cat4">
+                                    <i class="bi bi-box"></i><br>Other
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label class="form-label fw-semibold">Intake Type</label>
+                        <div class="row g-3">
+                            <div class="col-6">
+                                <input type="radio" class="btn-check" name="intake_type" 
+                                       id="type1" value="Intake" required
+                                       {% if session.get('intake_type') == 'Intake' %}checked{% endif %}>
+                                <label class="btn btn-outline-success w-100 py-3" for="type1">
+                                    <i class="bi bi-arrow-down-circle"></i><br>Intake
+                                </label>
+                            </div>
+                            <div class="col-6">
+                                <input type="radio" class="btn-check" name="intake_type" 
+                                       id="type2" value="Received Batch"
+                                       {% if session.get('intake_type') == 'Received Batch' %}checked{% endif %}>
+                                <label class="btn btn-outline-success w-100 py-3" for="type2">
+                                    <i class="bi bi-inbox"></i><br>Received Batch
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="bi bi-check-circle"></i> Save Configuration
+                        </button>
+                        <a href="{{ url_for('worker_dashboard') }}" class="btn btn-outline-secondary">
+                            <i class="bi bi-x-circle"></i> Cancel
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
