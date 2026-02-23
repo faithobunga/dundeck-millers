@@ -439,3 +439,44 @@ body {
         font-size: 11px;
     }
 }
+
+/* Navbar Logo */
+.navbar-brand img {
+    border-radius: 5px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    transition: transform 0.3s ease;
+}
+
+.navbar-brand img:hover {
+    transform: scale(1.05);
+}
+
+/* Footer Logo */
+footer img {
+    border-radius: 5px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+/* Responsive Logo */
+@media (max-width: 768px) {
+    .navbar-brand img {
+        height: 30px;
+    }
+    
+    .navbar-brand span {
+        font-size: 0.9rem;
+    }
+    
+    footer img {
+        height: 40px;
+        margin-bottom: 10px;
+    }
+}
+
+/* Print - Show Logo */
+@media print {
+    .navbar-brand img,
+    footer img {
+        display: block !important;
+    }
+}

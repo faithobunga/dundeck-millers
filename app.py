@@ -1227,16 +1227,422 @@ def export_csv():
     )
 
 
-@app.route('/inventory/report')
+@app.route('/reports/daily')
 @login_required
-def inventory_report():
-    """Generate inventory report"""
-    inventories = InventorySummary.query.all()
-    activities = get_recent_inventory_activity(limit=50)
+def daily_report():
+    """Daily report for managers and directors"""
+    if current_user.role not in ['manager', 'director', 'admin']:
+        flash('Access denied. Manager or Director privileges required.', 'danger')
+        return redirect(url_for('dashboard'))
     
-    return render_template('inventory_report.html',
+    # Get selected date
+    date_str = request.args.get('date', date.today().isoformat())
+    try:
+        report_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+    except:
+        report_date = date.today()
+    
+    # Get all sheets for this date
+    sheets = IntakeSheet.query.filter_by(sheet_date=report_date).all()
+    
+    # Calculate statistics by sheet type
+    stats = {
+        'daily': {'count': 0, 'cages': 0, 'weight': 0, 'bags': 0},
+        'received': {'count': 0, 'cages': 0, 'weight': 0, 'bags': 0},
+        'outstock': {'count': 0, 'cages': 0, 'weight': 0, 'bags': 0},
+        'lost': {'count': 0, 'cages': 0, 'weight': 0, 'bags': 0}
+    }
+    
+    # Calculate by product
+    product_stats = {}
+    
+    for sheet in sheets:
+        sheet_type = sheet.sheet_type
+        product = sheet.product_type
+        
+        # Get bag weight
+        if product in ['Maize Grains', 'Maize Germ']:
+            bag_weight = 90
+        else:
+            bag_weight = 50
+        
+        # Calculate totals
+        total_cages = len(sheet.entries)
+        total_weight = sum(entry.weight for entry in sheet.entries)
+        total_bags = total_weight / bag_weight if bag_weight > 0 else 0
+        
+        # Update sheet type stats
+        stats[sheet_type]['count'] += 1
+        stats[sheet_type]['cages'] += total_cages
+        stats[sheet_type]['weight'] += total_weight
+        stats[sheet_type]['bags'] += total_bags
+        
+        # Update product stats
+        if product not in product_stats:
+            product_stats[product] = {'received': 0, 'outstock': 0, 'lost': 0, 'net': 0}
+        
+        if sheet_type == 'received':
+            product_stats[product]['received'] += total_bags
+        elif sheet_type == 'outstock':
+            product_stats[product]['outstock'] += total_bags
+        elif sheet_type == 'lost':
+            product_stats[product]['lost'] += total_bags
+        
+        product_stats[product]['net'] = (
+            product_stats[product]['received'] - 
+            product_stats[product]['outstock'] - 
+            product_stats[product]['lost']
+        )
+    
+    # Get inventory summaries
+    inventories = InventorySummary.query.all()
+    
+    # Prepare summary cards
+    summary_cards = [
+        {'title': 'DAILY WEIGHT SHEETS', 'value': stats['daily']['count'], 
+         'subtitle': f"{stats['daily']['bags']:.1f} bags", 'color': 'primary'},
+        {'title': 'RECEIVED BATCHES', 'value': stats['received']['count'], 
+         'subtitle': f"{stats['received']['bags']:.1f} bags", 'color': 'success'},
+        {'title': 'OUT STOCK', 'value': stats['outstock']['count'], 
+         'subtitle': f"{stats['outstock']['bags']:.1f} bags", 'color': 'danger'},
+        {'title': 'LOST/DAMAGED', 'value': stats['lost']['count'], 
+         'subtitle': f"{stats['lost']['bags']:.1f} bags", 'color': 'warning'}
+    ]
+    
+    return render_template('reports/universal_report.html',
+                         report_type='daily',
+                         report_title='Daily Report',
+                         report_subtitle=report_date.strftime('%A, %B %d, %Y'),
+                         report_icon='calendar-day',
+                         report_date=report_date,
+                         summary_cards=summary_cards,
+                         product_stats=product_stats,
                          inventories=inventories,
-                         activities=activities)
+                         export_url=url_for('export_csv', date=report_date.strftime('%Y-%m-%d')))
+
+
+@app.route('/reports/weekly')
+@login_required
+def weekly_report():
+    """Weekly report for managers and directors"""
+    if current_user.role not in ['manager', 'director', 'admin']:
+        flash('Access denied. Manager or Director privileges required.', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    # Get week (default to current week)
+    date_str = request.args.get('date', date.today().isoformat())
+    try:
+        end_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+    except:
+        end_date = date.today()
+    
+    from datetime import timedelta
+    start_date = end_date - timedelta(days=6)
+    
+    # Get all sheets for this week
+    sheets = IntakeSheet.query.filter(
+        IntakeSheet.sheet_date >= start_date,
+        IntakeSheet.sheet_date <= end_date
+    ).all()
+    
+    # Calculate daily breakdown
+    daily_breakdown = {}
+    current_date = start_date
+    while current_date <= end_date:
+        daily_breakdown[current_date] = {'received': 0, 'outstock': 0, 'lost': 0, 'daily': 0}
+        current_date += timedelta(days=1)
+    
+    # Calculate product breakdown
+    product_breakdown = {}
+    total_received = 0
+    total_outstock = 0
+    total_lost = 0
+    
+    for sheet in sheets:
+        sheet_date = sheet.sheet_date
+        product = sheet.product_type
+        
+        # Get bag weight
+        if product in ['Maize Grains', 'Maize Germ']:
+            bag_weight = 90
+        else:
+            bag_weight = 50
+        
+        # Calculate totals
+        total_weight = sum(entry.weight for entry in sheet.entries)
+        total_bags = total_weight / bag_weight if bag_weight > 0 else 0
+        
+        # Update daily breakdown
+        if sheet.sheet_type in daily_breakdown[sheet_date]:
+            daily_breakdown[sheet_date][sheet.sheet_type] += total_bags
+        
+        # Update totals
+        if sheet.sheet_type == 'received':
+            total_received += total_bags
+        elif sheet.sheet_type == 'outstock':
+            total_outstock += total_bags
+        elif sheet.sheet_type == 'lost':
+            total_lost += total_bags
+        
+        # Update product breakdown
+        if product not in product_breakdown:
+            product_breakdown[product] = {'received': 0, 'outstock': 0, 'lost': 0}
+        
+        if sheet.sheet_type == 'received':
+            product_breakdown[product]['received'] += total_bags
+        elif sheet.sheet_type == 'outstock':
+            product_breakdown[product]['outstock'] += total_bags
+        elif sheet.sheet_type == 'lost':
+            product_breakdown[product]['lost'] += total_bags
+    
+    # Get inventory summaries
+    inventories = InventorySummary.query.all()
+    
+    # Prepare summary cards
+    summary_cards = [
+        {'title': 'TOTAL RECEIVED', 'value': f"{total_received:.1f}", 
+         'subtitle': 'bags this week', 'color': 'success'},
+        {'title': 'TOTAL OUT STOCK', 'value': f"{total_outstock:.1f}", 
+         'subtitle': 'bags this week', 'color': 'danger'},
+        {'title': 'TOTAL LOST', 'value': f"{total_lost:.1f}", 
+         'subtitle': 'bags this week', 'color': 'warning'},
+        {'title': 'NET CHANGE', 'value': f"{total_received - total_outstock - total_lost:+.1f}", 
+         'subtitle': 'bags this week', 'color': 'info'}
+    ]
+    
+    return render_template('reports/universal_report.html',
+                         report_type='weekly',
+                         report_title='Weekly Report',
+                         report_subtitle=f"{start_date.strftime('%b %d')} - {end_date.strftime('%b %d, %Y')}",
+                         report_icon='calendar-week',
+                         end_date=end_date,
+                         summary_cards=summary_cards,
+                         daily_breakdown=daily_breakdown,
+                         product_breakdown=product_breakdown,
+                         inventories=inventories,
+                         export_url=url_for('export_csv', date=end_date.strftime('%Y-%m-%d')))
+
+
+@app.route('/reports/monthly')
+@login_required
+def monthly_report():
+    """Monthly report for managers and directors"""
+    if current_user.role not in ['manager', 'director', 'admin']:
+        flash('Access denied. Manager or Director privileges required.', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    # Get month (default to current month)
+    year = int(request.args.get('year', date.today().year))
+    month = int(request.args.get('month', date.today().month))
+    
+    from calendar import monthrange
+    _, last_day = monthrange(year, month)
+    
+    start_date = date(year, month, 1)
+    end_date = date(year, month, last_day)
+    
+    # Get all sheets for this month
+    sheets = IntakeSheet.query.filter(
+        IntakeSheet.sheet_date >= start_date,
+        IntakeSheet.sheet_date <= end_date
+    ).all()
+    
+    # Calculate weekly breakdown
+    weekly_breakdown = []
+    from datetime import timedelta
+    
+    current_week_start = start_date
+    week_num = 1
+    
+    while current_week_start <= end_date:
+        current_week_end = min(current_week_start + timedelta(days=6), end_date)
+        
+        week_data = {
+            'week': week_num,
+            'start': current_week_start,
+            'end': current_week_end,
+            'received': 0,
+            'outstock': 0,
+            'lost': 0
+        }
+        
+        # Get sheets for this week
+        week_sheets = [s for s in sheets if current_week_start <= s.sheet_date <= current_week_end]
+        
+        for sheet in week_sheets:
+            product = sheet.product_type
+            if product in ['Maize Grains', 'Maize Germ']:
+                bag_weight = 90
+            else:
+                bag_weight = 50
+            
+            total_weight = sum(entry.weight for entry in sheet.entries)
+            total_bags = total_weight / bag_weight if bag_weight > 0 else 0
+            
+            if sheet.sheet_type == 'received':
+                week_data['received'] += total_bags
+            elif sheet.sheet_type == 'outstock':
+                week_data['outstock'] += total_bags
+            elif sheet.sheet_type == 'lost':
+                week_data['lost'] += total_bags
+        
+        weekly_breakdown.append(week_data)
+        current_week_start = current_week_end + timedelta(days=1)
+        week_num += 1
+    
+    # Calculate product breakdown
+    product_breakdown = {}
+    total_received = 0
+    total_outstock = 0
+    total_lost = 0
+    
+    for sheet in sheets:
+        product = sheet.product_type
+        
+        if product in ['Maize Grains', 'Maize Germ']:
+            bag_weight = 90
+        else:
+            bag_weight = 50
+        
+        total_weight = sum(entry.weight for entry in sheet.entries)
+        total_bags = total_weight / bag_weight if bag_weight > 0 else 0
+        
+        if product not in product_breakdown:
+            product_breakdown[product] = {'received': 0, 'outstock': 0, 'lost': 0}
+        
+        if sheet.sheet_type == 'received':
+            product_breakdown[product]['received'] += total_bags
+            total_received += total_bags
+        elif sheet.sheet_type == 'outstock':
+            product_breakdown[product]['outstock'] += total_bags
+            total_outstock += total_bags
+        elif sheet.sheet_type == 'lost':
+            product_breakdown[product]['lost'] += total_bags
+            total_lost += total_bags
+    
+    # Get inventory summaries
+    inventories = InventorySummary.query.all()
+    
+    # Prepare summary cards
+    month_names = ['', 'January', 'February', 'March', 'April', 'May', 'June',
+                   'July', 'August', 'September', 'October', 'November', 'December']
+    
+    summary_cards = [
+        {'title': 'TOTAL RECEIVED', 'value': f"{total_received:.1f}", 
+         'subtitle': 'bags this month', 'color': 'success'},
+        {'title': 'TOTAL OUT STOCK', 'value': f"{total_outstock:.1f}", 
+         'subtitle': 'bags this month', 'color': 'danger'},
+        {'title': 'TOTAL LOST', 'value': f"{total_lost:.1f}", 
+         'subtitle': 'bags this month', 'color': 'warning'},
+        {'title': 'NET CHANGE', 'value': f"{total_received - total_outstock - total_lost:+.1f}", 
+         'subtitle': 'bags this month', 'color': 'info'}
+    ]
+    
+    return render_template('reports/universal_report.html',
+                         report_type='monthly',
+                         report_title='Monthly Report',
+                         report_subtitle=f"{month_names[month]} {year}",
+                         report_icon='calendar-month',
+                         year=year,
+                         month=month,
+                         start_date=start_date,
+                         end_date=end_date,
+                         summary_cards=summary_cards,
+                         weekly_breakdown=weekly_breakdown,
+                         product_breakdown=product_breakdown,
+                         inventories=inventories,
+                         export_url=url_for('export_csv', date=end_date.strftime('%Y-%m-%d')))
+
+
+@app.route('/reports/product-movement')
+@login_required
+def product_movement_report():
+    """Product movement report for managers and directors"""
+    if current_user.role not in ['manager', 'director', 'admin']:
+        flash('Access denied. Manager or Director privileges required.', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    # Get date range (default to last 30 days)
+    from datetime import timedelta
+    
+    end_date_str = request.args.get('end_date', date.today().isoformat())
+    try:
+        end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+    except:
+        end_date = date.today()
+    
+    start_date = end_date - timedelta(days=29)
+    
+    # Get all sheets in date range
+    sheets = IntakeSheet.query.filter(
+        IntakeSheet.sheet_date >= start_date,
+        IntakeSheet.sheet_date <= end_date
+    ).all()
+    
+    # Calculate movement by product
+    movement_data = {}
+    total_received = 0
+    total_outstock = 0
+    total_lost = 0
+    
+    for sheet in sheets:
+        product = sheet.product_type
+        
+        if product in ['Maize Grains', 'Maize Germ']:
+            bag_weight = 90
+        else:
+            bag_weight = 50
+        
+        total_weight = sum(entry.weight for entry in sheet.entries)
+        total_bags = total_weight / bag_weight if bag_weight > 0 else 0
+        
+        if product not in movement_data:
+            movement_data[product] = []
+        
+        movement_data[product].append({
+            'date': sheet.sheet_date,
+            'type': sheet.sheet_type,
+            'bags': total_bags,
+            'worker': sheet.worker.name
+        })
+        
+        if sheet.sheet_type == 'received':
+            total_received += total_bags
+        elif sheet.sheet_type == 'outstock':
+            total_outstock += total_bags
+        elif sheet.sheet_type == 'lost':
+            total_lost += total_bags
+    
+    # Sort movements by date (most recent first)
+    for product in movement_data:
+        movement_data[product].sort(key=lambda x: x['date'], reverse=True)
+    
+    # Get current inventory
+    inventories = InventorySummary.query.all()
+    
+    # Prepare summary cards
+    summary_cards = [
+        {'title': 'PERIOD RECEIVED', 'value': f"{total_received:.1f}", 
+         'subtitle': 'bags (30 days)', 'color': 'success'},
+        {'title': 'PERIOD OUT STOCK', 'value': f"{total_outstock:.1f}", 
+         'subtitle': 'bags (30 days)', 'color': 'danger'},
+        {'title': 'PERIOD LOST', 'value': f"{total_lost:.1f}", 
+         'subtitle': 'bags (30 days)', 'color': 'warning'},
+        {'title': 'NET MOVEMENT', 'value': f"{total_received - total_outstock - total_lost:+.1f}", 
+         'subtitle': 'bags (30 days)', 'color': 'info'}
+    ]
+    
+    return render_template('reports/universal_report.html',
+                         report_type='movement',
+                         report_title='Product Movement Report',
+                         report_subtitle=f"{start_date.strftime('%b %d')} - {end_date.strftime('%b %d, %Y')} (30 days)",
+                         report_icon='arrow-left-right',
+                         start_date=start_date,
+                         end_date=end_date,
+                         summary_cards=summary_cards,
+                         movement_data=movement_data,
+                         inventories=inventories,
+                         export_url=url_for('export_csv', date=end_date.strftime('%Y-%m-%d')))
 
 
 # ============================================================================

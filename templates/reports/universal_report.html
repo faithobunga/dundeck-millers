@@ -1,0 +1,354 @@
+{% extends "base.html" %}
+
+{% block title %}{{ report_title }} - Dunedeck Millers{% endblock %}
+
+{% block content %}
+<!-- Header -->
+<div class="row mb-4 no-print">
+    <div class="col-md-8">
+        <h2 class="fw-bold">
+            <i class="bi bi-{{ report_icon }}"></i> {{ report_title }}
+        </h2>
+        <p class="text-muted mb-0">{{ report_subtitle }}</p>
+    </div>
+    <div class="col-md-4 text-md-end">
+        <!-- Date Selector for Daily Report -->
+        {% if report_type == 'daily' %}
+        <input type="date" id="dateSelector" class="form-control d-inline-block w-auto" 
+               value="{{ report_date.strftime('%Y-%m-%d') }}" onchange="changeDate('daily')">
+        
+        <!-- Week Selector for Weekly Report -->
+        {% elif report_type == 'weekly' %}
+        <input type="date" id="dateSelector" class="form-control d-inline-block w-auto" 
+               value="{{ end_date.strftime('%Y-%m-%d') }}" onchange="changeDate('weekly')">
+        <small class="d-block text-muted">Select end date</small>
+        
+        <!-- Month Selector for Monthly Report -->
+        {% elif report_type == 'monthly' %}
+        <select class="form-select d-inline-block w-auto" id="monthSelector" onchange="changeMonth()">
+            {% for m in range(1, 13) %}
+            <option value="{{ m }}" {% if m == month %}selected{% endif %}>
+                {{ ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][m-1] }}
+            </option>
+            {% endfor %}
+        </select>
+        <select class="form-select d-inline-block w-auto" id="yearSelector" onchange="changeMonth()">
+            {% for y in range(2024, 2030) %}
+            <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>
+            {% endfor %}
+        </select>
+        
+        <!-- Date Range for Product Movement -->
+        {% elif report_type == 'movement' %}
+        <input type="date" id="endDateSelector" class="form-control d-inline-block w-auto" 
+               value="{{ end_date.strftime('%Y-%m-%d') }}" onchange="changeDate('movement')">
+        <small class="d-block text-muted">Last 30 days ending</small>
+        {% endif %}
+        
+        <button class="btn btn-info ms-2" onclick="window.print()">
+            <i class="bi bi-printer"></i> Print
+        </button>
+        <a href="{{ export_url }}" class="btn btn-success" download>
+            <i class="bi bi-download"></i> CSV
+        </a>
+    </div>
+</div>
+
+<!-- Summary Cards -->
+<div class="row mb-4">
+    {% for card in summary_cards %}
+    <div class="col-md-{{ 12 // summary_cards|length }}">
+        <div class="card bg-{{ card.color }} text-white shadow-sm">
+            <div class="card-body text-center">
+                <h6 class="text-white-50">{{ card.title }}</h6>
+                <h2 class="mb-0">{{ card.value }}</h2>
+                {% if card.subtitle %}
+                <small>{{ card.subtitle }}</small>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Main Data Section -->
+{% if report_type == 'daily' %}
+<!-- Daily Report: Product Movement -->
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-light">
+        <h5 class="mb-0"><i class="bi bi-box-seam"></i> Product Movement Summary</h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-bordered table-hover">
+                <thead class="table-light">
+                    <tr>
+                        <th>Product</th>
+                        <th class="text-success">Received</th>
+                        <th class="text-danger">Out Stock</th>
+                        <th class="text-warning">Lost</th>
+                        <th class="fw-bold">Net Change</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for product, data in product_stats.items() %}
+                    <tr>
+                        <td class="fw-semibold">{{ product }}</td>
+                        <td class="text-success">+{{ "%.2f"|format(data.received) }} bags</td>
+                        <td class="text-danger">-{{ "%.2f"|format(data.outstock) }} bags</td>
+                        <td class="text-warning">-{{ "%.2f"|format(data.lost) }} bags</td>
+                        <td class="fw-bold {% if data.net > 0 %}text-success{% elif data.net < 0 %}text-danger{% endif %}">
+                            {{ "%+.2f"|format(data.net) }} bags
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{% elif report_type == 'weekly' %}
+<!-- Weekly Report: Daily Breakdown -->
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-light">
+        <h5 class="mb-0"><i class="bi bi-calendar-week"></i> Daily Breakdown</h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-bordered table-hover">
+                <thead class="table-light">
+                    <tr>
+                        <th>Date</th>
+                        <th>Day</th>
+                        <th class="text-primary">Daily Weights</th>
+                        <th class="text-success">Received</th>
+                        <th class="text-danger">Out Stock</th>
+                        <th class="text-warning">Lost</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for day, data in daily_breakdown.items() %}
+                    <tr>
+                        <td>{{ day.strftime('%Y-%m-%d') }}</td>
+                        <td>{{ day.strftime('%A') }}</td>
+                        <td class="text-primary">{{ "%.2f"|format(data.daily) }} bags</td>
+                        <td class="text-success">{{ "%.2f"|format(data.received) }} bags</td>
+                        <td class="text-danger">{{ "%.2f"|format(data.outstock) }} bags</td>
+                        <td class="text-warning">{{ "%.2f"|format(data.lost) }} bags</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Weekly: Product Summary -->
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-light">
+        <h5 class="mb-0"><i class="bi bi-box-seam"></i> Product Summary</h5>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            {% for product, data in product_breakdown.items() %}
+            <div class="col-md-6 mb-3">
+                <div class="card">
+                    <div class="card-body">
+                        <h6 class="fw-bold">{{ product }}</h6>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span class="text-success">Received:</span>
+                            <strong class="text-success">{{ "%.2f"|format(data.received) }} bags</strong>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span class="text-danger">Out Stock:</span>
+                            <strong class="text-danger">{{ "%.2f"|format(data.outstock) }} bags</strong>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <span class="text-warning">Lost:</span>
+                            <strong class="text-warning">{{ "%.2f"|format(data.lost) }} bags</strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+{% elif report_type == 'monthly' %}
+<!-- Monthly Report: Weekly Breakdown -->
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-light">
+        <h5 class="mb-0"><i class="bi bi-calendar3"></i> Weekly Breakdown</h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-bordered table-hover">
+                <thead class="table-light">
+                    <tr>
+                        <th>Week</th>
+                        <th>Date Range</th>
+                        <th class="text-success">Received</th>
+                        <th class="text-danger">Out Stock</th>
+                        <th class="text-warning">Lost</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for week in weekly_breakdown %}
+                    <tr>
+                        <td>Week {{ week.week }}</td>
+                        <td>{{ week.start.strftime('%b %d') }} - {{ week.end.strftime('%b %d') }}</td>
+                        <td class="text-success">{{ "%.2f"|format(week.received) }} bags</td>
+                        <td class="text-danger">{{ "%.2f"|format(week.outstock) }} bags</td>
+                        <td class="text-warning">{{ "%.2f"|format(week.lost) }} bags</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Monthly: Product Summary -->
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-light">
+        <h5 class="mb-0"><i class="bi bi-box-seam"></i> Product Summary</h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-bordered table-hover">
+                <thead class="table-light">
+                    <tr>
+                        <th>Product</th>
+                        <th class="text-success">Received</th>
+                        <th class="text-danger">Out Stock</th>
+                        <th class="text-warning">Lost</th>
+                        <th class="fw-bold">Net Change</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for product, data in product_breakdown.items() %}
+                    <tr>
+                        <td class="fw-semibold">{{ product }}</td>
+                        <td class="text-success">{{ "%.2f"|format(data.received) }} bags</td>
+                        <td class="text-danger">{{ "%.2f"|format(data.outstock) }} bags</td>
+                        <td class="text-warning">{{ "%.2f"|format(data.lost) }} bags</td>
+                        <td class="fw-bold {% if (data.received - data.outstock - data.lost) > 0 %}text-success{% else %}text-danger{% endif %}">
+                            {{ "%+.2f"|format(data.received - data.outstock - data.lost) }} bags
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{% elif report_type == 'movement' %}
+<!-- Product Movement Report -->
+{% for product, movements in movement_data.items() %}
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-light">
+        <h5 class="mb-0"><i class="bi bi-arrow-left-right"></i> {{ product }} - Movement History</h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover">
+                <thead class="table-light">
+                    <tr>
+                        <th>Date</th>
+                        <th>Type</th>
+                        <th>Quantity</th>
+                        <th>Worker</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for movement in movements %}
+                    <tr>
+                        <td>{{ movement.date.strftime('%Y-%m-%d') }}</td>
+                        <td>
+                            {% if movement.type == 'received' %}
+                            <span class="badge bg-success">Received</span>
+                            {% elif movement.type == 'outstock' %}
+                            <span class="badge bg-danger">Out Stock</span>
+                            {% elif movement.type == 'lost' %}
+                            <span class="badge bg-warning">Lost</span>
+                            {% else %}
+                            <span class="badge bg-primary">Daily</span>
+                            {% endif %}
+                        </td>
+                        <td class="fw-bold">{{ "%.2f"|format(movement.bags) }} bags</td>
+                        <td>{{ movement.worker }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endfor %}
+{% endif %}
+
+<!-- Current Inventory (All Reports) -->
+<div class="card shadow-sm">
+    <div class="card-header bg-light">
+        <h5 class="mb-0"><i class="bi bi-clipboard-data"></i> Current Inventory Levels</h5>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            {% for inv in inventories %}
+            <div class="col-md-6 col-lg-3 mb-3">
+                <div class="card {% if inv.is_critical_stock() %}border-danger{% elif inv.is_low_stock() %}border-warning{% endif %}">
+                    <div class="card-body text-center">
+                        <h6 class="text-muted">{{ inv.product_type }}</h6>
+                        <h3 class="mb-0 {% if inv.is_critical_stock() %}text-danger{% elif inv.is_low_stock() %}text-warning{% else %}text-success{% endif %}">
+                            {{ "%.1f"|format(inv.remaining_bags) }}
+                        </h3>
+                        <small class="text-muted">bags remaining</small>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function changeDate(type) {
+    const date = document.getElementById('dateSelector').value;
+    if (type === 'daily') {
+        window.location.href = "{{ url_for('daily_report') }}?date=" + date;
+    } else if (type === 'weekly') {
+        window.location.href = "{{ url_for('weekly_report') }}?date=" + date;
+    } else if (type === 'movement') {
+        const endDate = document.getElementById('endDateSelector').value;
+        window.location.href = "{{ url_for('product_movement_report') }}?end_date=" + endDate;
+    }
+}
+
+function changeMonth() {
+    const month = document.getElementById('monthSelector').value;
+    const year = document.getElementById('yearSelector').value;
+    window.location.href = "{{ url_for('monthly_report') }}?month=" + month + "&year=" + year;
+}
+</script>
+
+<style>
+@media print {
+    .no-print { display: none !important; }
+    .card { 
+        page-break-inside: avoid; 
+        box-shadow: none !important;
+        border: 1px solid #dee2e6 !important;
+    }
+    body {
+        print-color-adjust: exact;
+        -webkit-print-color-adjust: exact;
+    }
+}
+</style>
+{% endblock %}
