@@ -1,5 +1,5 @@
 """
-Dunedeck Millers - Daily Weight Record System
+Dunedeck Millers - Daily Weight Record System with Inventory Management
 Flask Application with Sheet-Based Tracking
 """
 
@@ -54,21 +54,32 @@ class IntakeSheet(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     sheet_date = db.Column(db.Date, nullable=False, default=date.today)
     product_type = db.Column(db.String(50), nullable=False)  # Maize Grains, Maize Germ, Animal Feeds, Other
+    sheet_type = db.Column(db.String(20), nullable=False, default='daily')  # 'daily', 'received', 'outstock', 'lost'
     worker_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    
+    # For Out Stock sheets
+    authorized_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    destination = db.Column(db.String(200))
+    purpose = db.Column(db.String(200))
+    authorization_status = db.Column(db.String(20), default='pending')  # 'pending', 'authorized', 'rejected'
+    
     status = db.Column(db.String(20), default='In Progress')  # 'In Progress', 'Closed'
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     closed_at = db.Column(db.DateTime)
     
     # Relationships
     entries = db.relationship('IntakeEntry', backref='sheet', lazy=True, cascade='all, delete-orphan')
+    authorized_by = db.relationship('User', foreign_keys=[authorized_by_id])
     
     def to_dict(self):
         return {
             'id': self.id,
             'sheet_date': self.sheet_date.isoformat(),
             'product_type': self.product_type,
+            'sheet_type': self.sheet_type,
             'worker_name': self.worker.name,
             'status': self.status,
+            'authorization_status': self.authorization_status,
             'created_at': self.created_at.isoformat(),
             'entry_count': len(self.entries)
         }
@@ -107,13 +118,50 @@ class AuditLog(db.Model):
     editor = db.relationship('User', foreign_keys=[editor_id])
 
 
+class InventorySummary(db.Model):
+    """Inventory summary by product type"""
+    id = db.Column(db.Integer, primary_key=True)
+    product_type = db.Column(db.String(50), unique=True, nullable=False)
+    total_received_bags = db.Column(db.Float, default=0)
+    total_outstock_bags = db.Column(db.Float, default=0)
+    total_lost_bags = db.Column(db.Float, default=0)
+    remaining_bags = db.Column(db.Float, default=0)
+    last_updated = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    def calculate_remaining(self):
+        """Calculate remaining stock"""
+        self.remaining_bags = self.total_received_bags - self.total_outstock_bags - self.total_lost_bags
+        self.last_updated = datetime.utcnow()
+    
+    def is_low_stock(self):
+        """Check if stock is low (below 50 bags)"""
+        return self.remaining_bags < 50
+    
+    def is_critical_stock(self):
+        """Check if stock is critical (below 20 bags)"""
+        return self.remaining_bags < 20
+
+
+class PasswordResetRequest(db.Model):
+    """Password reset requests"""
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    status = db.Column(db.String(20), default='pending')  # 'pending', 'approved', 'rejected'
+    requested_at = db.Column(db.DateTime, default=datetime.utcnow)
+    resolved_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    resolved_at = db.Column(db.DateTime)
+    
+    user = db.relationship('User', foreign_keys=[user_id])
+    resolved_by = db.relationship('User', foreign_keys=[resolved_by_id])
+
+
 # ============================================================================
 # LOGIN MANAGER
 # ============================================================================
 
 @login_manager.user_loader
 def load_user(user_id):
-    return User.query.get(int(user_id))
+    return db.session.get(User, int(user_id))
 
 
 # ============================================================================
@@ -140,6 +188,135 @@ def admin_required(f):
             return redirect(url_for('dashboard'))
         return f(*args, **kwargs)
     return decorated_function
+
+
+# ============================================================================
+# INVENTORY HELPER FUNCTIONS
+# ============================================================================
+
+def update_inventory(product_type):
+    """Update inventory summary for a product"""
+    # Get or create inventory summary
+    inventory = InventorySummary.query.filter_by(product_type=product_type).first()
+    if not inventory:
+        inventory = InventorySummary(product_type=product_type)
+        db.session.add(inventory)
+    
+    # Calculate bag weight based on product
+    if product_type in ['Maize Grains', 'Maize Germ']:
+        bag_weight = 90
+    else:
+        bag_weight = 50
+    
+    # Calculate received (only closed sheets)
+    received_sheets = IntakeSheet.query.filter_by(
+        product_type=product_type,
+        sheet_type='received',
+        status='Closed'
+    ).all()
+    
+    total_received_weight = 0
+    for sheet in received_sheets:
+        for entry in sheet.entries:
+            total_received_weight += entry.weight
+    
+    inventory.total_received_bags = total_received_weight / bag_weight
+    
+    # Calculate out stock (only closed and authorized sheets)
+    outstock_sheets = IntakeSheet.query.filter_by(
+        product_type=product_type,
+        sheet_type='outstock',
+        status='Closed',
+        authorization_status='authorized'
+    ).all()
+    
+    total_outstock_weight = 0
+    for sheet in outstock_sheets:
+        for entry in sheet.entries:
+            total_outstock_weight += entry.weight
+    
+    inventory.total_outstock_bags = total_outstock_weight / bag_weight
+    
+    # Calculate lost (only closed sheets)
+    lost_sheets = IntakeSheet.query.filter_by(
+        product_type=product_type,
+        sheet_type='lost',
+        status='Closed'
+    ).all()
+    
+    total_lost_weight = 0
+    for sheet in lost_sheets:
+        for entry in sheet.entries:
+            total_lost_weight += entry.weight
+    
+    inventory.total_lost_bags = total_lost_weight / bag_weight
+    
+    # Calculate remaining
+    inventory.calculate_remaining()
+    
+    db.session.commit()
+    
+    return inventory
+
+
+def get_inventory_alerts():
+    """Get all inventory alerts"""
+    inventories = InventorySummary.query.all()
+    alerts = []
+    
+    for inv in inventories:
+        if inv.is_critical_stock():
+            alerts.append({
+                'level': 'critical',
+                'product': inv.product_type,
+                'remaining': inv.remaining_bags,
+                'message': f'CRITICAL: Only {inv.remaining_bags:.1f} bags remaining!'
+            })
+        elif inv.is_low_stock():
+            alerts.append({
+                'level': 'warning',
+                'product': inv.product_type,
+                'remaining': inv.remaining_bags,
+                'message': f'LOW STOCK: {inv.remaining_bags:.1f} bags remaining'
+            })
+    
+    return alerts
+
+
+def get_recent_inventory_activity(limit=10):
+    """Get recent inventory transactions"""
+    sheets = IntakeSheet.query.filter(
+        IntakeSheet.sheet_type.in_(['received', 'outstock', 'lost']),
+        IntakeSheet.status == 'Closed'
+    ).order_by(IntakeSheet.closed_at.desc()).limit(limit).all()
+    
+    activities = []
+    for sheet in sheets:
+        total_weight = sum(entry.weight for entry in sheet.entries)
+        
+        if sheet.product_type in ['Maize Grains', 'Maize Germ']:
+            bag_weight = 90
+        else:
+            bag_weight = 50
+        
+        total_bags = total_weight / bag_weight
+        
+        activity_types = {
+            'received': 'Received',
+            'outstock': 'Out Stock',
+            'lost': 'Lost/Damaged'
+        }
+        
+        activities.append({
+            'date': sheet.closed_at,
+            'type': activity_types.get(sheet.sheet_type, sheet.sheet_type),
+            'product': sheet.product_type,
+            'bags': total_bags,
+            'worker': sheet.worker.name,
+            'sheet_id': sheet.id
+        })
+    
+    return activities
 
 
 # ============================================================================
@@ -189,6 +366,28 @@ def login():
             flash('Invalid username or password', 'danger')
     
     return render_template('login.html')
+
+
+@app.route('/forgot-password', methods=['GET', 'POST'])
+def forgot_password():
+    """Forgot password - request admin assistance"""
+    if request.method == 'POST':
+        username = request.form.get('username')
+        user = User.query.filter_by(username=username).first()
+        
+        if user:
+            # Create password reset request
+            reset_request = PasswordResetRequest(user_id=user.id)
+            db.session.add(reset_request)
+            db.session.commit()
+            
+            flash('Password reset request submitted. An administrator will contact you shortly.', 'success')
+        else:
+            flash('Username not found. Please contact your administrator.', 'danger')
+        
+        return redirect(url_for('login'))
+    
+    return render_template('forgot_password.html')
 
 
 @app.route('/logout')
@@ -244,14 +443,20 @@ def dashboard():
 @app.route('/worker/dashboard')
 @login_required
 def worker_dashboard():
-    """Worker dashboard - shows only In Progress and Closed sheets"""
+    """Worker dashboard - shows sheets by type with tabs"""
     if current_user.role not in ['worker', 'manager', 'admin']:
         return redirect(url_for('dashboard'))
     
-    # Get only In Progress and Closed sheets for this worker
-    sheets = IntakeSheet.query.filter_by(worker_id=current_user.id)\
-                               .filter(IntakeSheet.status.in_(['In Progress', 'Closed']))\
-                               .order_by(IntakeSheet.created_at.desc()).all()
+    # Get filter (which tab is active)
+    sheet_filter = request.args.get('type', 'daily')  # daily, received, outstock, lost
+    
+    # Get sheets for this worker and filter type
+    sheets = IntakeSheet.query.filter_by(
+        worker_id=current_user.id,
+        sheet_type=sheet_filter
+    ).filter(
+        IntakeSheet.status.in_(['In Progress', 'Closed'])
+    ).order_by(IntakeSheet.created_at.desc()).all()
     
     # Calculate totals for each sheet
     sheet_data = []
@@ -266,7 +471,7 @@ def worker_dashboard():
         # Calculate bags based on product type
         if sheet.product_type in ['Maize Grains', 'Maize Germ']:
             bag_weight = 90
-        else:  # Animal Feeds or Other
+        else:
             bag_weight = 50
         
         total_bags = total_weight / bag_weight if bag_weight > 0 else 0
@@ -282,13 +487,36 @@ def worker_dashboard():
         total_all_cages += total_cages
         total_all_weight += total_weight
     
+    # Get count of sheets by type for badges
+    daily_count = IntakeSheet.query.filter_by(worker_id=current_user.id, sheet_type='daily').count()
+    received_count = IntakeSheet.query.filter_by(worker_id=current_user.id, sheet_type='received').count()
+    outstock_count = IntakeSheet.query.filter_by(worker_id=current_user.id, sheet_type='outstock').count()
+    lost_count = IntakeSheet.query.filter_by(worker_id=current_user.id, sheet_type='lost').count()
+    
+    # Get pending authorizations count
+    pending_auth = IntakeSheet.query.filter_by(
+        worker_id=current_user.id,
+        sheet_type='outstock',
+        authorization_status='pending'
+    ).count()
+    
+    # Get inventory alerts
+    alerts = get_inventory_alerts()
+    
     today = date.today()
     
-    return render_template('worker_dashboard.html', 
+    return render_template('worker_dashboard.html',
                          sheet_data=sheet_data,
                          total_all_cages=total_all_cages,
                          total_all_weight=total_all_weight,
-                         today=today)
+                         today=today,
+                         sheet_filter=sheet_filter,
+                         daily_count=daily_count,
+                         received_count=received_count,
+                         outstock_count=outstock_count,
+                         lost_count=lost_count,
+                         pending_auth=pending_auth,
+                         alerts=alerts)
 
 
 @app.route('/manager/dashboard')
@@ -302,6 +530,7 @@ def manager_dashboard():
     
     # Get filter parameters
     worker_filter = request.args.get('worker', 'all')
+    sheet_type_filter = request.args.get('type', 'all')
     
     # Base query
     query = IntakeSheet.query.filter_by(sheet_date=selected_date)
@@ -309,6 +538,10 @@ def manager_dashboard():
     # Apply worker filter
     if worker_filter != 'all':
         query = query.filter_by(worker_id=int(worker_filter))
+    
+    # Apply sheet type filter
+    if sheet_type_filter != 'all':
+        query = query.filter_by(sheet_type=sheet_type_filter)
     
     sheets = query.order_by(IntakeSheet.created_at.desc()).all()
     
@@ -343,19 +576,39 @@ def manager_dashboard():
     # Get all workers for filter
     workers = User.query.filter_by(role='worker').all()
     
+    # Get inventory summaries
+    inventories = InventorySummary.query.all()
+    
+    # Get pending authorizations
+    pending_auths = IntakeSheet.query.filter_by(
+        sheet_type='outstock',
+        authorization_status='pending'
+    ).count()
+    
+    # Get password reset requests
+    reset_requests = PasswordResetRequest.query.filter_by(status='pending').all()
+    
+    # Get alerts
+    alerts = get_inventory_alerts()
+    
     return render_template('manager_dashboard.html',
                          sheet_data=sheet_data,
                          selected_date=selected_date,
                          worker_filter=worker_filter,
+                         sheet_type_filter=sheet_type_filter,
                          workers=workers,
                          grand_total_cages=grand_total_cages,
-                         grand_total_weight=grand_total_weight)
+                         grand_total_weight=grand_total_weight,
+                         inventories=inventories,
+                         pending_auths=pending_auths,
+                         reset_requests=reset_requests,
+                         alerts=alerts)
 
 
 @app.route('/director/dashboard')
 @login_required
 def director_dashboard():
-    """Director dashboard - view-only access to all sheets"""
+    """Director dashboard - view-only access to inventory and reports"""
     if current_user.role not in ['director', 'admin']:
         return redirect(url_for('dashboard'))
     
@@ -363,42 +616,46 @@ def director_dashboard():
     selected_date_str = request.args.get('date', date.today().isoformat())
     selected_date = datetime.strptime(selected_date_str, '%Y-%m-%d').date()
     
-    sheets = IntakeSheet.query.filter_by(sheet_date=selected_date)\
-                               .order_by(IntakeSheet.created_at.desc()).all()
+    # Get all inventory summaries
+    inventories = InventorySummary.query.all()
     
-    # Calculate totals
-    sheet_data = []
-    grand_total_cages = 0
-    grand_total_weight = 0
+    # Get recent activity
+    activities = get_recent_inventory_activity(limit=20)
     
-    for sheet in sheets:
-        entries = sheet.entries
-        total_cages = len(entries)
-        total_weight = sum(entry.weight for entry in entries)
-        
-        if sheet.product_type in ['Maize Grains', 'Maize Germ']:
-            bag_weight = 90
-        else:
-            bag_weight = 50
-        
-        total_bags = total_weight / bag_weight if bag_weight > 0 else 0
-        
-        sheet_data.append({
-            'sheet': sheet,
-            'total_cages': total_cages,
-            'total_weight': total_weight,
-            'total_bags': total_bags,
-            'bag_weight': bag_weight
-        })
-        
-        grand_total_cages += total_cages
-        grand_total_weight += total_weight
+    # Get alerts
+    alerts = get_inventory_alerts()
+    
+    # Get daily stats for selected date
+    daily_sheets = IntakeSheet.query.filter_by(sheet_date=selected_date).all()
+    
+    daily_stats = {
+        'daily_count': 0,
+        'received_count': 0,
+        'outstock_count': 0,
+        'lost_count': 0,
+        'total_workers': 0
+    }
+    
+    workers_today = set()
+    for sheet in daily_sheets:
+        workers_today.add(sheet.worker_id)
+        if sheet.sheet_type == 'daily':
+            daily_stats['daily_count'] += 1
+        elif sheet.sheet_type == 'received':
+            daily_stats['received_count'] += 1
+        elif sheet.sheet_type == 'outstock':
+            daily_stats['outstock_count'] += 1
+        elif sheet.sheet_type == 'lost':
+            daily_stats['lost_count'] += 1
+    
+    daily_stats['total_workers'] = len(workers_today)
     
     return render_template('director_dashboard.html',
-                         sheet_data=sheet_data,
+                         inventories=inventories,
+                         activities=activities,
+                         alerts=alerts,
                          selected_date=selected_date,
-                         grand_total_cages=grand_total_cages,
-                         grand_total_weight=grand_total_weight)
+                         daily_stats=daily_stats)
 
 
 @app.route('/admin/dashboard')
@@ -407,7 +664,13 @@ def director_dashboard():
 def admin_dashboard():
     """Admin dashboard - user management"""
     users = User.query.order_by(User.created_at.desc()).all()
-    return render_template('admin_dashboard.html', users=users)
+    
+    # Get password reset requests
+    reset_requests = PasswordResetRequest.query.filter_by(status='pending').all()
+    
+    return render_template('admin_dashboard.html', 
+                         users=users,
+                         reset_requests=reset_requests)
 
 
 # ============================================================================
@@ -422,21 +685,35 @@ def create_sheet():
         return jsonify({'success': False, 'message': 'Access denied'}), 403
     
     product_type = request.form.get('product_type')
+    sheet_type = request.form.get('sheet_type', 'daily')
     
     if not product_type:
-        return jsonify({'success': False, 'message': 'Product type is required'}), 400
+        flash('Product type is required', 'danger')
+        return redirect(url_for('worker_dashboard'))
     
     # Create new sheet
     sheet = IntakeSheet(
         product_type=product_type,
+        sheet_type=sheet_type,
         worker_id=current_user.id,
         status='In Progress'
     )
     
+    # Set authorization status for outstock sheets
+    if sheet_type == 'outstock':
+        sheet.authorization_status = 'pending'
+    
     db.session.add(sheet)
     db.session.commit()
     
-    flash(f'New sheet created for {product_type}', 'success')
+    sheet_type_names = {
+        'daily': 'Daily Weight',
+        'received': 'Received Batch',
+        'outstock': 'Out Stock',
+        'lost': 'Lost/Damaged'
+    }
+    
+    flash(f'New {sheet_type_names.get(sheet_type, "sheet")} created for {product_type}', 'success')
     return redirect(url_for('view_sheet', sheet_id=sheet.id))
 
 
@@ -475,6 +752,11 @@ def view_sheet(sheet_id):
     is_editable = (current_user.role in ['manager', 'admin']) or \
                   (current_user.id == sheet.worker_id and sheet.status == 'In Progress')
     
+    # Check if can authorize (managers only, for outstock sheets)
+    can_authorize = (current_user.role in ['manager', 'admin'] and 
+                    sheet.sheet_type == 'outstock' and 
+                    sheet.authorization_status == 'pending')
+    
     return render_template('view_sheet.html',
                          sheet=sheet,
                          entries=entries,
@@ -483,7 +765,8 @@ def view_sheet(sheet_id):
                          total_bags=total_bags,
                          bag_weight=bag_weight,
                          next_cage=next_cage,
-                         is_editable=is_editable)
+                         is_editable=is_editable,
+                         can_authorize=can_authorize)
 
 
 @app.route('/sheet/<int:sheet_id>/close', methods=['POST'])
@@ -499,11 +782,21 @@ def close_sheet(sheet_id):
     if sheet.status == 'Closed':
         return jsonify({'success': False, 'message': 'Sheet is already closed'}), 400
     
+    # For outstock sheets, check authorization
+    if sheet.sheet_type == 'outstock' and sheet.authorization_status != 'authorized':
+        return jsonify({'success': False, 'message': 'Out Stock sheet must be authorized before closing'}), 400
+    
     sheet.status = 'Closed'
     sheet.closed_at = datetime.utcnow()
     db.session.commit()
     
-    flash('Sheet closed successfully', 'success')
+    # Update inventory if this is received, outstock, or lost sheet
+    if sheet.sheet_type in ['received', 'outstock', 'lost']:
+        update_inventory(sheet.product_type)
+        flash(f'Sheet closed and inventory updated', 'success')
+    else:
+        flash('Sheet closed successfully', 'success')
+    
     return jsonify({'success': True, 'message': 'Sheet closed successfully'})
 
 
@@ -668,6 +961,56 @@ def delete_entry(entry_id):
 
 
 # ============================================================================
+# ROUTES - AUTHORIZATION (MANAGER)
+# ============================================================================
+
+@app.route('/sheet/<int:sheet_id>/authorize', methods=['POST'])
+@login_required
+@manager_required
+def authorize_sheet(sheet_id):
+    """Authorize an out stock sheet"""
+    sheet = IntakeSheet.query.get_or_404(sheet_id)
+    
+    if sheet.sheet_type != 'outstock':
+        return jsonify({'success': False, 'message': 'Only out stock sheets need authorization'}), 400
+    
+    destination = request.form.get('destination')
+    purpose = request.form.get('purpose')
+    
+    if not destination or not purpose:
+        return jsonify({'success': False, 'message': 'Destination and purpose are required'}), 400
+    
+    sheet.authorized_by_id = current_user.id
+    sheet.destination = destination
+    sheet.purpose = purpose
+    sheet.authorization_status = 'authorized'
+    
+    db.session.commit()
+    
+    flash(f'Out Stock sheet authorized successfully', 'success')
+    return jsonify({'success': True, 'message': 'Sheet authorized'})
+
+
+@app.route('/sheet/<int:sheet_id>/reject', methods=['POST'])
+@login_required
+@manager_required
+def reject_sheet(sheet_id):
+    """Reject an out stock sheet"""
+    sheet = IntakeSheet.query.get_or_404(sheet_id)
+    
+    if sheet.sheet_type != 'outstock':
+        return jsonify({'success': False, 'message': 'Only out stock sheets can be rejected'}), 400
+    
+    reason = request.form.get('reason', 'No reason provided')
+    
+    sheet.authorization_status = 'rejected'
+    db.session.commit()
+    
+    flash(f'Out Stock sheet rejected: {reason}', 'warning')
+    return jsonify({'success': True, 'message': 'Sheet rejected', 'reason': reason})
+
+
+# ============================================================================
 # ROUTES - USER MANAGEMENT (ADMIN)
 # ============================================================================
 
@@ -781,6 +1124,46 @@ def user_details(user_id):
                          total_entries=total_entries)
 
 
+@app.route('/admin/reset-request/<int:request_id>/approve', methods=['POST'])
+@login_required
+@admin_required
+def approve_reset_request(request_id):
+    """Approve a password reset request"""
+    reset_req = PasswordResetRequest.query.get_or_404(request_id)
+    
+    new_password = request.form.get('new_password', 'temp123')
+    
+    user = reset_req.user
+    user.set_password(new_password)
+    user.must_change_password = True
+    
+    reset_req.status = 'approved'
+    reset_req.resolved_by_id = current_user.id
+    reset_req.resolved_at = datetime.utcnow()
+    
+    db.session.commit()
+    
+    flash(f'Password reset approved for {user.name}. New password: {new_password}', 'success')
+    return redirect(url_for('admin_dashboard'))
+
+
+@app.route('/admin/reset-request/<int:request_id>/reject', methods=['POST'])
+@login_required
+@admin_required
+def reject_reset_request(request_id):
+    """Reject a password reset request"""
+    reset_req = PasswordResetRequest.query.get_or_404(request_id)
+    
+    reset_req.status = 'rejected'
+    reset_req.resolved_by_id = current_user.id
+    reset_req.resolved_at = datetime.utcnow()
+    
+    db.session.commit()
+    
+    flash(f'Password reset request rejected', 'info')
+    return redirect(url_for('admin_dashboard'))
+
+
 # ============================================================================
 # ROUTES - REPORTS & EXPORT
 # ============================================================================
@@ -795,33 +1178,43 @@ def export_csv():
     date_str = request.args.get('date', date.today().isoformat())
     export_date = datetime.strptime(date_str, '%Y-%m-%d').date()
     
+    sheet_type = request.args.get('type', 'all')
+    
     # Get sheets
     if current_user.role == 'worker':
-        sheets = IntakeSheet.query.filter_by(
+        query = IntakeSheet.query.filter_by(
             worker_id=current_user.id,
             sheet_date=export_date
-        ).all()
+        )
     else:
-        sheets = IntakeSheet.query.filter_by(sheet_date=export_date).all()
+        query = IntakeSheet.query.filter_by(sheet_date=export_date)
+    
+    if sheet_type != 'all':
+        query = query.filter_by(sheet_type=sheet_type)
+    
+    sheets = query.all()
     
     # Create CSV
     output = StringIO()
     writer = csv.writer(output)
     
     # Header
-    writer.writerow(['Date', 'Worker', 'Product Type', 'Sheet Status', 'Cage Number', 'Weight (KG)', 'Timestamp'])
+    writer.writerow(['Date', 'Sheet Type', 'Worker', 'Product Type', 'Sheet Status', 
+                    'Cage Number', 'Weight (KG)', 'Timestamp', 'Authorization Status'])
     
     # Data
     for sheet in sheets:
         for entry in sheet.entries:
             writer.writerow([
                 sheet.sheet_date.isoformat(),
+                sheet.sheet_type.upper(),
                 sheet.worker.name,
                 sheet.product_type,
                 sheet.status,
                 entry.cage_number,
                 entry.weight,
-                entry.timestamp.strftime('%Y-%m-%d %H:%M:%S')
+                entry.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
+                sheet.authorization_status if sheet.sheet_type == 'outstock' else 'N/A'
             ])
     
     # Return CSV
@@ -832,6 +1225,18 @@ def export_csv():
         mimetype='text/csv',
         headers={'Content-Disposition': f'attachment; filename=dunedeck_sheets_{export_date.isoformat()}.csv'}
     )
+
+
+@app.route('/inventory/report')
+@login_required
+def inventory_report():
+    """Generate inventory report"""
+    inventories = InventorySummary.query.all()
+    activities = get_recent_inventory_activity(limit=50)
+    
+    return render_template('inventory_report.html',
+                         inventories=inventories,
+                         activities=activities)
 
 
 # ============================================================================

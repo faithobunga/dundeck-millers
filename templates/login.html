@@ -9,37 +9,68 @@
             <div class="card-body p-5">
                 <div class="text-center mb-4">
                     <div class="mb-3">
-                        <i class="bi bi-box-seam text-primary" style="font-size: 3rem;"></i>
+                        <img src="{{ url_for('static', filename='images/logo.jpeg') }}" 
+                             alt="Dunedeck Millers" 
+                             style="max-width: 200px; height: auto;">
                     </div>
-                    <h2 class="fw-bold">Dunedeck Millers</h2>
                     <p class="text-muted">Daily Weight Record System</p>
                 </div>
                 
                 <form method="POST" action="{{ url_for('login') }}">
                     <div class="mb-3">
                         <label for="username" class="form-label fw-semibold">Username</label>
-                        <input type="text" class="form-control form-control-lg" id="username" 
-                               name="username" required autofocus>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-person"></i></span>
+                            <input type="text" class="form-control form-control-lg" id="username" 
+                                   name="username" required autofocus placeholder="Enter username">
+                        </div>
                     </div>
                     
                     <div class="mb-4">
                         <label for="password" class="form-label fw-semibold">Password</label>
-                        <input type="password" class="form-control form-control-lg" id="password" 
-                               name="password" required>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-lock"></i></span>
+                            <input type="password" class="form-control form-control-lg" id="password" 
+                                   name="password" required placeholder="Enter password">
+                            <button class="btn btn-outline-secondary" type="button" id="togglePassword">
+                                <i class="bi bi-eye" id="eyeIcon"></i>
+                            </button>
+                        </div>
                     </div>
                     
-                    <button type="submit" class="btn btn-primary btn-lg w-100">
-                        <i class="bi bi-box-arrow-in-right"></i> Sign In
+                    <button type="submit" class="btn btn-primary btn-lg w-100 mb-3">
+                        <i class="bi bi-box-arrow-in-right"></i> Login
                     </button>
+                    
+                    <div class="text-center">
+                        <a href="{{ url_for('forgot_password') }}" class="text-muted">
+                            <i class="bi bi-question-circle"></i> Forgot Password?
+                        </a>
+                    </div>
                 </form>
-                
-                <div class="mt-4 p-3 bg-light rounded">
-                    <p class="mb-2 fw-semibold small">Demo Credentials:</p>
-                    <p class="mb-1 small">Worker: worker1 / worker123</p>
-                    <p class="mb-0 small">Manager: manager / manager123</p>
-                </div>
             </div>
+        </div>
+        
+        <div class="text-center mt-3 text-muted small">
+            <i class="bi bi-shield-check"></i> Secure Login
         </div>
     </div>
 </div>
+
+<script>
+document.getElementById('togglePassword').addEventListener('click', function() {
+    const passwordInput = document.getElementById('password');
+    const eyeIcon = document.getElementById('eyeIcon');
+    
+    if (passwordInput.type === 'password') {
+        passwordInput.type = 'text';
+        eyeIcon.classList.remove('bi-eye');
+        eyeIcon.classList.add('bi-eye-slash');
+    } else {
+        passwordInput.type = 'password';
+        eyeIcon.classList.remove('bi-eye-slash');
+        eyeIcon.classList.add('bi-eye');
+    }
+});
+</script>
 {% endblock %}

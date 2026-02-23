@@ -403,3 +403,39 @@ body {
         opacity: 0.5;
     }
 }
+
+/* Company Header Banner */
+.company-header-banner {
+    width: 100%;
+    height: auto;
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    margin-bottom: 20px;
+}
+
+/* Print Styles */
+@media print {
+    /* Show header when printing */
+    .company-header-banner {
+        display: block !important;
+        width: 100%;
+        margin-bottom: 20px;
+        page-break-after: avoid;
+    }
+    
+    /* Hide buttons and navigation when printing */
+    .btn, .navbar, .alert, .modal, .no-print {
+        display: none !important;
+    }
+    
+    /* Clean card borders for printing */
+    .card {
+        box-shadow: none !important;
+        border: 1px solid #dee2e6 !important;
+    }
+    
+    /* Smaller table text for printing */
+    .table {
+        font-size: 11px;
+    }
+}

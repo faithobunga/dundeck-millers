@@ -3,6 +3,19 @@
 {% block title %}Admin Dashboard - Dunedeck Millers{% endblock %}
 
 {% block content %}
+<!-- Password Reset Requests Alert -->
+{% if reset_requests %}
+<div class="row mb-3">
+    <div class="col-12">
+        <div class="alert alert-warning alert-dismissible fade show">
+            <i class="bi bi-key"></i>
+            <strong>{{ reset_requests|length }} password reset request(s)</strong> pending approval.
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <!-- Header -->
 <div class="row mb-4">
     <div class="col-md-8">
@@ -17,6 +30,52 @@
         </button>
     </div>
 </div>
+
+<!-- Password Reset Requests Section -->
+{% if reset_requests %}
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-warning">
+        <h5 class="mb-0 text-white">
+            <i class="bi bi-key"></i> Pending Password Reset Requests
+        </h5>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>User</th>
+                        <th>Username</th>
+                        <th>Role</th>
+                        <th>Requested</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for req in reset_requests %}
+                    <tr id="reset-request-{{ req.id }}">
+                        <td class="fw-semibold">{{ req.user.name }}</td>
+                        <td>{{ req.user.username }}</td>
+                        <td>
+                            <span class="badge role-{{ req.user.role }}">{{ req.user.role|title }}</span>
+                        </td>
+                        <td class="text-muted">{{ req.requested_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                        <td>
+                            <button class="btn btn-sm btn-success" onclick="approveResetRequest({{ req.id }}, '{{ req.user.name }}')">
+                                <i class="bi bi-check-circle"></i> Approve
+                            </button>
+                            <button class="btn btn-sm btn-danger" onclick="rejectResetRequest({{ req.id }})">
+                                <i class="bi bi-x-circle"></i> Reject
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
 
 <!-- User Statistics -->
 <div class="row mb-4">
@@ -264,13 +323,49 @@
                     
                     <div class="alert alert-warning">
                         <i class="bi bi-exclamation-triangle"></i> 
-                        The user will be logged out and required to change this password.
+                        The user will be required to change this password on next login.
                     </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                     <button type="submit" class="btn btn-warning">
                         <i class="bi bi-key"></i> Reset Password
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Approve Reset Request Modal -->
+<div class="modal fade" id="approveResetModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-check-circle"></i> Approve Password Reset
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="approveResetForm">
+                <div class="modal-body">
+                    <input type="hidden" id="approve_request_id">
+                    <p>Approve password reset for <strong id="approve_user_name"></strong>?</p>
+                    
+                    <div class="mb-3">
+                        <label for="approve_new_password" class="form-label">New Temporary Password</label>
+                        <input type="text" class="form-control" id="approve_new_password" name="new_password" value="temp123">
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> 
+                        The user will be notified and must change this password on next login.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="bi bi-check-circle"></i> Approve & Reset
                     </button>
                 </div>
             </form>
@@ -309,7 +404,7 @@ document.getElementById('resetPasswordForm').addEventListener('submit', function
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            alert(`Password reset successfully!\nNew password: ${data.new_password}`);
+            alert(`Password reset successfully!\nNew password: ${data.new_password}\n\nPlease share this with the user.`);
             bootstrap.Modal.getInstance(document.getElementById('resetPasswordModal')).hide();
             location.reload();
         } else {
@@ -338,7 +433,7 @@ function toggleBlock(userId, userName, isBlocked) {
 }
 
 function deleteUser(userId, userName) {
-    if (!confirm(`Are you sure you want to delete user "${userName}"? This action cannot be undone and will delete all their sheets and entries.`)) {
+    if (!confirm(`Are you sure you want to delete user "${userName}"?\n\nThis action cannot be undone and will delete all their sheets and entries.`)) {
         return;
     }
     
@@ -353,9 +448,50 @@ function deleteUser(userId, userName) {
     .then(data => {
         if (data.success) {
             document.getElementById('user-' + userId).remove();
+            location.reload();
         } else {
             alert(data.message);
         }
+    });
+}
+
+function approveResetRequest(requestId, userName) {
+    document.getElementById('approve_request_id').value = requestId;
+    document.getElementById('approve_user_name').textContent = userName;
+    
+    const modal = new bootstrap.Modal(document.getElementById('approveResetModal'));
+    modal.show();
+}
+
+document.getElementById('approveResetForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const requestId = document.getElementById('approve_request_id').value;
+    const newPassword = document.getElementById('approve_new_password').value;
+    
+    const formData = new FormData();
+    formData.append('new_password', newPassword);
+    
+    fetch(`/admin/reset-request/${requestId}/approve`, {
+        method: 'POST',
+        body: formData
+    })
+    .then(() => {
+        alert('Password reset approved! The user can now login with the new password.');
+        location.reload();
+    });
+});
+
+function rejectResetRequest(requestId) {
+    if (!confirm('Reject this password reset request?')) {
+        return;
+    }
+    
+    fetch(`/admin/reset-request/${requestId}/reject`, {
+        method: 'POST'
+    })
+    .then(() => {
+        alert('Password reset request rejected.');
+        location.reload();
     });
 }
 </script>

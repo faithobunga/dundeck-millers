@@ -3,11 +3,29 @@
 {% block title %}{{ sheet.product_type }} Sheet - Dunedeck Millers{% endblock %}
 
 {% block content %}
+<!-- Company Header Banner -->
+<div class="row mb-3">
+    <div class="col-12">
+        <img src="{{ url_for('static', filename='images/header.jpeg') }}" 
+             alt="Dunedeck Millers - Your Choice, We Deliver" 
+             class="company-header-banner">
+    </div>
+</div>
+
 <!-- Header -->
 <div class="row mb-4">
     <div class="col-md-8">
         <h2 class="fw-bold">
             <i class="bi bi-file-text"></i> {{ sheet.product_type }}
+            {% if sheet.sheet_type == 'daily' %}
+                <span class="badge bg-primary">Daily Weight</span>
+            {% elif sheet.sheet_type == 'received' %}
+                <span class="badge bg-success">Received Batch</span>
+            {% elif sheet.sheet_type == 'outstock' %}
+                <span class="badge bg-danger">Out Stock</span>
+            {% elif sheet.sheet_type == 'lost' %}
+                <span class="badge bg-warning">Lost/Damaged</span>
+            {% endif %}
         </h2>
         <p class="text-muted mb-0">
             {{ sheet.sheet_date.strftime('%B %d, %Y') }} • {{ sheet.worker.name }}
@@ -19,19 +37,70 @@
         </p>
     </div>
     <div class="col-md-4 text-md-end">
-        <a href="{{ url_for('worker_dashboard') }}" class="btn btn-outline-secondary">
+        {% if current_user.role == 'worker' %}
+        <a href="{{ url_for('worker_dashboard', type=sheet.sheet_type) }}" class="btn btn-outline-secondary">
             <i class="bi bi-arrow-left"></i> Back
         </a>
+        {% elif current_user.role == 'manager' %}
+        <a href="{{ url_for('manager_dashboard') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Back
+        </a>
+        {% elif current_user.role == 'director' %}
+        <a href="{{ url_for('director_dashboard') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Back
+        </a>
+        {% endif %}
+        
         {% if sheet.status == 'In Progress' and (current_user.id == sheet.worker_id or current_user.role in ['manager', 'admin']) %}
         <button class="btn btn-warning" onclick="closeSheet()">
             <i class="bi bi-lock"></i> Close Sheet
         </button>
         {% endif %}
-        <a href="{{ url_for('export_csv', date=sheet.sheet_date) }}" class="btn btn-success">
-            <i class="bi bi-download"></i> Export
+        
+        <button class="btn btn-info" onclick="window.print()">
+            <i class="bi bi-printer"></i> Print
+        </button>
+        
+        <a href="{{ url_for('export_csv', date=sheet.sheet_date.strftime('%Y-%m-%d'), type=sheet.sheet_type) }}" 
+           class="btn btn-success" download>
+            <i class="bi bi-download"></i> Download CSV
         </a>
     </div>
 </div>
+
+<!-- Authorization Section (For Out Stock Sheets) -->
+{% if sheet.sheet_type == 'outstock' %}
+<div class="row mb-4">
+    <div class="col-12">
+        {% if sheet.authorization_status == 'pending' %}
+        <div class="alert alert-warning">
+            <i class="bi bi-clock-history"></i>
+            <strong>Pending Authorization</strong> - This out stock sheet is waiting for manager approval.
+            {% if can_authorize %}
+            <button class="btn btn-sm btn-success ms-3" data-bs-toggle="modal" data-bs-target="#authorizeModal">
+                <i class="bi bi-check-circle"></i> Authorize Now
+            </button>
+            {% endif %}
+        </div>
+        {% elif sheet.authorization_status == 'authorized' %}
+        <div class="alert alert-success">
+            <i class="bi bi-check-circle-fill"></i>
+            <strong>Authorized by {{ sheet.authorized_by.name }}</strong>
+            <br>
+            <small>
+                <strong>Destination:</strong> {{ sheet.destination }} |
+                <strong>Purpose:</strong> {{ sheet.purpose }}
+            </small>
+        </div>
+        {% elif sheet.authorization_status == 'rejected' %}
+        <div class="alert alert-danger">
+            <i class="bi bi-x-circle-fill"></i>
+            <strong>Rejected</strong> - This out stock sheet was rejected by management.
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
 
 <!-- Summary Cards -->
 <div class="row mb-4">
@@ -109,7 +178,7 @@
                         <th>Weight (KG)</th>
                         <th>Time</th>
                         {% if is_editable %}
-                        <th>Actions</th>
+                        <th class="no-print">Actions</th>
                         {% endif %}
                     </tr>
                 </thead>
@@ -120,7 +189,7 @@
                         <td>{{ entry.weight }} kg</td>
                         <td class="text-muted">{{ entry.timestamp.strftime('%H:%M:%S') }}</td>
                         {% if is_editable %}
-                        <td>
+                        <td class="no-print">
                             <div class="btn-group btn-group-sm">
                                 <button class="btn btn-outline-primary" 
                                         onclick="editEntry({{ entry.id }}, '{{ entry.cage_number }}', {{ entry.weight }})">
@@ -180,6 +249,45 @@
         </div>
     </div>
 </div>
+
+<!-- Authorize Modal (For Managers) -->
+{% if can_authorize %}
+<div class="modal fade" id="authorizeModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Authorize Out Stock</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="authorizeForm" onsubmit="authorizeSheet(event)">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="destination" class="form-label">Destination</label>
+                        <input type="text" class="form-control" id="destination" 
+                               name="destination" required placeholder="e.g., Milling Section A">
+                    </div>
+                    <div class="mb-3">
+                        <label for="purpose" class="form-label">Purpose</label>
+                        <input type="text" class="form-control" id="purpose" 
+                               name="purpose" required placeholder="e.g., Production Run #045">
+                    </div>
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i>
+                        Authorizing this sheet will allow it to be closed and inventory will be updated.
+                    </div>
+                    <div id="authorizeMessage"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="bi bi-check-circle"></i> Authorize
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
 
 {% endblock %}
 
@@ -246,6 +354,7 @@ function deleteEntry(id) {
     .then(data => {
         if (data.success) {
             document.getElementById('entry-' + id).remove();
+            location.reload();
         } else {
             alert(data.message);
         }
@@ -253,6 +362,11 @@ function deleteEntry(id) {
 }
 
 function closeSheet() {
+    {% if sheet.sheet_type == 'outstock' and sheet.authorization_status != 'authorized' %}
+    alert('Out Stock sheet must be authorized before closing.');
+    return;
+    {% endif %}
+    
     if (!confirm('Close this sheet? It will be locked from further editing.')) return;
     
     fetch("{{ url_for('close_sheet', sheet_id=sheet.id) }}", { method: 'POST' })
@@ -265,5 +379,61 @@ function closeSheet() {
         }
     });
 }
+
+{% if can_authorize %}
+function authorizeSheet(event) {
+    event.preventDefault();
+    const form = document.getElementById('authorizeForm');
+    const formData = new FormData(form);
+    const messageDiv = document.getElementById('authorizeMessage');
+    
+    fetch("{{ url_for('authorize_sheet', sheet_id=sheet.id) }}", {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            messageDiv.innerHTML = '<div class="alert alert-success">' + data.message + '</div>';
+            setTimeout(() => window.location.reload(), 1000);
+        } else {
+            messageDiv.innerHTML = '<div class="alert alert-danger">' + data.message + '</div>';
+        }
+    });
+}
+{% endif %}
 </script>
+
+<style>
+/* Print Styles */
+@media print {
+    .company-header-banner {
+        display: block !important;
+        width: 100%;
+        margin-bottom: 20px;
+        page-break-after: avoid;
+    }
+    
+    .btn, .navbar, .alert, .modal, .no-print {
+        display: none !important;
+    }
+    
+    .card {
+        box-shadow: none !important;
+        border: 1px solid #dee2e6 !important;
+    }
+    
+    .table {
+        font-size: 12px;
+    }
+}
+
+.company-header-banner {
+    width: 100%;
+    height: auto;
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    margin-bottom: 20px;
+}
+</style>
 {% endblock %}
