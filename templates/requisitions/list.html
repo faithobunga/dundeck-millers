@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+
+{% block title %}Internal Requisitions - Dunedeck Millers{% endblock %}
+
+{% block content %}
+<!-- Header -->
+<div class="row mb-4 no-print">
+    <div class="col-md-8">
+        <h2 class="fw-bold">
+            <i class="bi bi-clipboard-check"></i> Internal Requisitions
+        </h2>
+        <p class="text-muted mb-0">Request and approve internal stock movements</p>
+    </div>
+    <div class="col-md-4 text-md-end">
+        {% if current_user.role in ['worker', 'manager', 'admin'] %}
+        <a href="{{ url_for('create_requisition') }}" class="btn btn-primary">
+            <i class="bi bi-plus-circle"></i> New Requisition
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Status Filter Tabs -->
+<div class="card shadow-sm mb-4">
+    <div class="card-body">
+        <ul class="nav nav-pills" id="statusTabs">
+            <li class="nav-item">
+                <a class="nav-link active" href="#" data-status="all" onclick="filterByStatus('all')">
+                    All <span class="badge bg-secondary ms-1">{{ requisitions|length }}</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="#" data-status="pending" onclick="filterByStatus('pending')">
+                    Pending <span class="badge bg-warning ms-1">{{ requisitions|selectattr('status', 'equalto', 'pending')|list|length }}</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="#" data-status="approved" onclick="filterByStatus('approved')">
+                    Approved <span class="badge bg-success ms-1">{{ requisitions|selectattr('status', 'equalto', 'approved')|list|length }}</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="#" data-status="rejected" onclick="filterByStatus('rejected')">
+                    Rejected <span class="badge bg-danger ms-1">{{ requisitions|selectattr('status', 'equalto', 'rejected')|list|length }}</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="#" data-status="fulfilled" onclick="filterByStatus('fulfilled')">
+                    Fulfilled <span class="badge bg-info ms-1">{{ requisitions|selectattr('status', 'equalto', 'fulfilled')|list|length }}</span>
+                </a>
+            </li>
+        </ul>
+    </div>
+</div>
+
+<!-- Requisitions List -->
+{% if requisitions %}
+<div class="row" id="requisitionsContainer">
+    {% for req in requisitions %}
+    <div class="col-md-6 col-lg-4 mb-4 requisition-card" data-status="{{ req.status }}">
+        <div class="card shadow-sm h-100 {% if req.status == 'pending' %}border-warning{% elif req.status == 'approved' %}border-success{% elif req.status == 'rejected' %}border-danger{% endif %}">
+            <div class="card-header bg-light">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="mb-0 fw-bold">{{ req.requisition_number }}</h6>
+                        <small class="text-muted">{{ req.date_requested.strftime('%Y-%m-%d') }}</small>
+                    </div>
+                    <div>
+                        {% if req.status == 'pending' %}
+                        <span class="badge bg-warning">
+                            <i class="bi bi-clock"></i> Pending
+                        </span>
+                        {% elif req.status == 'approved' %}
+                        <span class="badge bg-success">
+                            <i class="bi bi-check-circle"></i> Approved
+                        </span>
+                        {% elif req.status == 'rejected' %}
+                        <span class="badge bg-danger">
+                            <i class="bi bi-x-circle"></i> Rejected
+                        </span>
+                        {% elif req.status == 'fulfilled' %}
+                        <span class="badge bg-info">
+                            <i class="bi bi-box-seam"></i> Fulfilled
+                        </span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <small class="text-muted d-block">Requested By:</small>
+                    <strong><i class="bi bi-person"></i> {{ req.requested_by.name }}</strong>
+                </div>
+                
+                {% if req.department %}
+                <div class="mb-3">
+                    <small class="text-muted d-block">Department:</small>
+                    <strong>{{ req.department }}</strong>
+                </div>
+                {% endif %}
+                
+                <div class="mb-3">
+                    <small class="text-muted d-block">Purpose:</small>
+                    <p class="mb-0">{{ req.purpose[:80] }}{% if req.purpose|length > 80 %}...{% endif %}</p>
+                </div>
+                
+                <div class="mb-3">
+                    <small class="text-muted d-block">Total Items:</small>
+                    <h5 class="mb-0 text-primary">{{ req.total_items }} items</h5>
+                </div>
+                
+                {% if req.status == 'approved' %}
+                <div class="mb-2">
+                    <small class="text-success">
+                        <i class="bi bi-check-circle"></i> Approved by {{ req.approved_by.name }}
+                        <br>{{ req.approval_date.strftime('%Y-%m-%d') }}
+                    </small>
+                </div>
+                {% endif %}
+                
+                {% if req.status == 'rejected' and req.rejection_reason %}
+                <div class="alert alert-danger mb-2 p-2">
+                    <small>
+                        <strong>Reason:</strong> {{ req.rejection_reason }}
+                    </small>
+                </div>
+                {% endif %}
+                
+                {% if req.status == 'fulfilled' %}
+                <div class="mb-2">
+                    <small class="text-info">
+                        <i class="bi bi-box-seam"></i> Received by {{ req.received_by.name if req.received_by else 'N/A' }}
+                        <br>{{ req.date_received.strftime('%Y-%m-%d') if req.date_received else 'N/A' }}
+                    </small>
+                </div>
+                {% endif %}
+            </div>
+            <div class="card-footer bg-light">
+                <a href="{{ url_for('view_requisition', requisition_id=req.id) }}" class="btn btn-sm btn-outline-primary w-100">
+                    <i class="bi bi-eye"></i> View Details
+                </a>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="card shadow-sm">
+    <div class="card-body text-center py-5">
+        <i class="bi bi-clipboard-x" style="font-size: 4rem; color: #dee2e6;"></i>
+        <h4 class="mt-3 text-muted">No Requisitions Yet</h4>
+        <p class="text-muted">Start by creating your first internal requisition</p>
+        {% if current_user.role in ['worker', 'manager', 'admin'] %}
+        <a href="{{ url_for('create_requisition') }}" class="btn btn-primary mt-3">
+            <i class="bi bi-plus-circle"></i> Create First Requisition
+        </a>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function filterByStatus(status) {
+    const cards = document.querySelectorAll('.requisition-card');
+    const tabs = document.querySelectorAll('#statusTabs .nav-link');
+    
+    // Update active tab
+    tabs.forEach(tab => {
+        if (tab.getAttribute('data-status') === status) {
+            tab.classList.add('active');
+        } else {
+            tab.classList.remove('active');
+        }
+    });
+    
+    // Filter cards
+    cards.forEach(card => {
+        if (status === 'all' || card.getAttribute('data-status') === status) {
+            card.style.display = 'block';
+        } else {
+            card.style.display = 'none';
+        }
+    });
+    
+    return false;
+}
+</script>
+{% endblock %}

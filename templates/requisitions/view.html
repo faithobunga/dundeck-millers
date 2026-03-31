@@ -1,0 +1,251 @@
+{% extends "base.html" %}
+
+{% block title %}Requisition {{ requisition.requisition_number }} - Dunedeck Millers{% endblock %}
+
+{% block content %}
+<!-- Header -->
+<div class="row mb-4 no-print">
+    <div class="col-md-8">
+        <h2 class="fw-bold">
+            <i class="bi bi-clipboard-check"></i> {{ requisition.requisition_number }}
+        </h2>
+        <p class="text-muted mb-0">Internal Requisition Details</p>
+    </div>
+    <div class="col-md-4 text-md-end">
+        <a href="{{ url_for('requisitions_list') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Back to List
+        </a>
+        <button class="btn btn-info" onclick="window.print()">
+            <i class="bi bi-printer"></i> Print
+        </button>
+    </div>
+</div>
+
+<!-- Status Alert -->
+<div class="row mb-4">
+    <div class="col-12">
+        {% if requisition.status == 'pending' %}
+        <div class="alert alert-warning">
+            <i class="bi bi-clock-history"></i>
+            <strong>Pending Approval</strong> - This requisition is waiting for manager review.
+            {% if current_user.role in ['manager', 'admin'] %}
+            <div class="mt-3">
+                <button class="btn btn-success btn-sm me-2" data-bs-toggle="modal" data-bs-target="#approveModal">
+                    <i class="bi bi-check-circle"></i> Approve
+                </button>
+                <button class="btn btn-danger btn-sm" data-bs-toggle="modal" data-bs-target="#rejectModal">
+                    <i class="bi bi-x-circle"></i> Reject
+                </button>
+            </div>
+            {% endif %}
+        </div>
+        {% elif requisition.status == 'approved' %}
+        <div class="alert alert-success">
+            <i class="bi bi-check-circle-fill"></i>
+            <strong>Approved by {{ requisition.approved_by.name }}</strong> on {{ requisition.approval_date.strftime('%B %d, %Y') }}
+            {% if current_user.role in ['manager', 'admin'] %}
+            <div class="mt-2">
+                <a href="{{ url_for('create_dispatch') }}?requisition_id={{ requisition.id }}" class="btn btn-sm btn-primary">
+                    <i class="bi bi-truck"></i> Create Dispatch
+                </a>
+            </div>
+            {% endif %}
+        </div>
+        {% elif requisition.status == 'rejected' %}
+        <div class="alert alert-danger">
+            <i class="bi bi-x-circle-fill"></i>
+            <strong>Rejected</strong>
+            {% if requisition.rejection_reason %}
+            <br><strong>Reason:</strong> {{ requisition.rejection_reason }}
+            {% endif %}
+        </div>
+        {% elif requisition.status == 'fulfilled' %}
+        <div class="alert alert-info">
+            <i class="bi bi-box-seam"></i>
+            <strong>Fulfilled</strong> - Items received by {{ requisition.received_by.name if requisition.received_by else 'N/A' }} 
+            on {{ requisition.date_received.strftime('%B %d, %Y') if requisition.date_received else 'N/A' }}
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Requisition Details -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="bi bi-info-circle"></i> Requisition Information</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-borderless mb-0">
+                    <tr>
+                        <th width="40%">Requisition No:</th>
+                        <td class="fw-bold">{{ requisition.requisition_number }}</td>
+                    </tr>
+                    <tr>
+                        <th>Requested By:</th>
+                        <td><i class="bi bi-person"></i> {{ requisition.requested_by.name }}</td>
+                    </tr>
+                    <tr>
+                        <th>Date Requested:</th>
+                        <td>{{ requisition.date_requested.strftime('%B %d, %Y') }}</td>
+                    </tr>
+                    <tr>
+                        <th>Department:</th>
+                        <td>{{ requisition.department or 'N/A' }}</td>
+                    </tr>
+                    <tr>
+                        <th>Status:</th>
+                        <td>
+                            {% if requisition.status == 'pending' %}
+                            <span class="badge bg-warning">Pending</span>
+                            {% elif requisition.status == 'approved' %}
+                            <span class="badge bg-success">Approved</span>
+                            {% elif requisition.status == 'rejected' %}
+                            <span class="badge bg-danger">Rejected</span>
+                            {% elif requisition.status == 'fulfilled' %}
+                            <span class="badge bg-info">Fulfilled</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card shadow-sm">
+            <div class="card-header bg-warning text-white">
+                <h5 class="mb-0"><i class="bi bi-chat-left-text"></i> Purpose</h5>
+            </div>
+            <div class="card-body">
+                <p class="mb-0">{{ requisition.purpose }}</p>
+            </div>
+        </div>
+        
+        {% if requisition.status == 'approved' %}
+        <div class="card shadow-sm mt-3">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0"><i class="bi bi-check-circle"></i> Approval Details</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-borderless mb-0">
+                    <tr>
+                        <th width="40%">Approved By:</th>
+                        <td>{{ requisition.approved_by.name }}</td>
+                    </tr>
+                    <tr>
+                        <th>Approval Date:</th>
+                        <td>{{ requisition.approval_date.strftime('%B %d, %Y') }}</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Items Table -->
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-light">
+        <h5 class="mb-0"><i class="bi bi-list-ul"></i> Requested Items ({{ requisition.total_items }})</h5>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th width="10%">#</th>
+                        <th width="45%">Item Description</th>
+                        <th width="15%">Quantity</th>
+                        <th width="30%">Reason</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in requisition.items %}
+                    <tr>
+                        <td class="text-center">{{ loop.index }}</td>
+                        <td class="fw-semibold">{{ item.item_description }}</td>
+                        <td><span class="badge bg-primary">{{ item.quantity }}</span></td>
+                        <td>{{ item.reason or 'N/A' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Approve Modal -->
+{% if current_user.role in ['manager', 'admin'] and requisition.status == 'pending' %}
+<div class="modal fade" id="approveModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title"><i class="bi bi-check-circle"></i> Approve Requisition</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('approve_requisition', requisition_id=requisition.id) }}">
+                <div class="modal-body">
+                    <p>Are you sure you want to approve this requisition?</p>
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i>
+                        <strong>Next Step:</strong> After approval, you can create a dispatch to fulfill this requisition.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="bi bi-check-circle"></i> Approve Requisition
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Reject Modal -->
+<div class="modal fade" id="rejectModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title"><i class="bi bi-x-circle"></i> Reject Requisition</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('reject_requisition', requisition_id=requisition.id) }}">
+                <div class="modal-body">
+                    <p>Please provide a reason for rejecting this requisition:</p>
+                    <div class="mb-3">
+                        <label for="reason" class="form-label fw-semibold">Rejection Reason *</label>
+                        <textarea class="form-control" id="reason" name="reason" rows="3" required
+                                  placeholder="Explain why this requisition is being rejected..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger">
+                        <i class="bi bi-x-circle"></i> Reject Requisition
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<style>
+@media print {
+    .no-print {
+        display: none !important;
+    }
+    .card {
+        box-shadow: none !important;
+        border: 1px solid #dee2e6 !important;
+        page-break-inside: avoid;
+    }
+}
+</style>
+{% endblock %}

@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Supplier {{ supplier.supplier_name }}</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 2cm;
+        }
+        
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 11pt;
+            line-height: 1.4;
+            color: #000;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            border-bottom: 3px solid #0d6832;
+            padding-bottom: 20px;
+        }
+        
+        .company-name {
+            font-size: 24pt;
+            font-weight: bold;
+            color: #0d6832;
+            margin-bottom: 5px;
+        }
+        
+        .document-title {
+            font-size: 18pt;
+            font-weight: bold;
+            margin-top: 20px;
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 8px 20px;
+            border-radius: 5px;
+            font-weight: bold;
+            font-size: 12pt;
+            margin-top: 10px;
+        }
+        
+        .status-paid { background-color: #28a745; color: white; }
+        .status-partial { background-color: #ffc107; color: #000; }
+        .status-unpaid { background-color: #dc3545; color: white; }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        
+        th {
+            background-color: #0d6832;
+            color: white;
+            padding: 10px;
+            text-align: left;
+            font-weight: bold;
+        }
+        
+        td {
+            padding: 8px;
+            border: 1px solid #ddd;
+        }
+        
+        .text-right {
+            text-align: right;
+        }
+        
+        .total-row {
+            background-color: #f0f0f0;
+            font-weight: bold;
+        }
+        
+        .info-box {
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-left: 4px solid #0d6832;
+            margin-bottom: 20px;
+        }
+        
+        .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 2px solid #0d6832;
+            text-align: center;
+            font-size: 9pt;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="header">
+        <div class="company-name">DUNEDECK MILLERS</div>
+        <div>Homa Bay, Kenya</div>
+        <div class="document-title">SUPPLIER PURCHASE RECORD</div>
+        <div style="margin-top: 10px;">
+            {% if supplier.payment_status == 'paid' %}
+            <span class="status-badge status-paid">FULLY PAID</span>
+            {% elif supplier.payment_status == 'partially_paid' %}
+            <span class="status-badge status-partial">PARTIALLY PAID</span>
+            {% else %}
+            <span class="status-badge status-unpaid">UNPAID</span>
+            {% endif %}
+        </div>
+    </div>
+    
+    <!-- Supplier Info -->
+    <div class="info-box">
+        <table style="border: none;">
+            <tr>
+                <td style="width: 50%; vertical-align: top; border: none;">
+                    <strong style="font-size: 12pt; color: #0d6832;">SUPPLIER INFORMATION:</strong><br>
+                    <strong>Name:</strong> {{ supplier.supplier_name }}<br>
+                    {% if supplier.kra_pin %}
+                    <strong>KRA PIN:</strong> {{ supplier.kra_pin }}<br>
+                    {% endif %}
+                    {% if supplier.phone_number %}
+                    <strong>Phone:</strong> {{ supplier.phone_number }}<br>
+                    {% endif %}
+                    {% if supplier.city %}
+                    <strong>City:</strong> {{ supplier.city }}<br>
+                    {% endif %}
+                    {% if supplier.address %}
+                    <strong>Address:</strong> {{ supplier.address }}
+                    {% endif %}
+                </td>
+                <td style="width: 50%; vertical-align: top; border: none; text-align: right;">
+                    <strong style="font-size: 12pt; color: #0d6832;">TRANSACTION DETAILS:</strong><br>
+                    <strong>Date:</strong> {{ supplier.transaction_date.strftime('%B %d, %Y') }}<br>
+                    {% if supplier.invoice_number %}
+                    <strong>Invoice #:</strong> {{ supplier.invoice_number }}<br>
+                    {% endif %}
+                    {% if supplier.lpo_number %}
+                    <strong>LPO #:</strong> {{ supplier.lpo_number }}<br>
+                    {% endif %}
+                    {% if supplier.reference_code %}
+                    <strong>Reference:</strong> {{ supplier.reference_code }}<br>
+                    {% endif %}
+                    <strong>Authorized By:</strong> {{ supplier.authorized_by.name if supplier.authorized_by else 'N/A' }}
+                </td>
+            </tr>
+        </table>
+    </div>
+    
+    <!-- Items Table -->
+    <h3 style="color: #0d6832; margin-top: 30px;">ITEMS PURCHASED</h3>
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 10%;">#</th>
+                <th style="width: 30%;">Product Type</th>
+                <th style="width: 15%;" class="text-right">Quantity</th>
+                <th style="width: 15%;" class="text-right">Weight (kg)</th>
+                <th style="width: 15%;" class="text-right">Unit Price</th>
+                <th style="width: 15%;" class="text-right">Total Amount</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in supplier.items %}
+            <tr>
+                <td>{{ loop.index }}</td>
+                <td>{{ item.product_type }}</td>
+                <td class="text-right">
+                    {% if item.product_type == 'Maize Grains' %}
+                    {{ "%.2f"|format(item.total_bags if item.total_bags else 0) }} bags
+                    {% else %}
+                    {{ "%.2f"|format(item.quantity) }} kg
+                    {% endif %}
+                </td>
+                <td class="text-right">{{ "%.2f"|format(item.total_weight if item.total_weight else 0) }}</td>
+                <td class="text-right">KSh {{ "{:,.2f}".format(item.unit_price) }} <small>({{ 'per bag' if item.price_basis == 'per_bag' else 'per kg' }})</small></td>
+                <td class="text-right"><strong>KSh {{ "{:,.2f}".format(item.total_amount) }}</strong></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+        <tfoot>
+            <tr class="total-row">
+                <td colspan="5" class="text-right">GRAND TOTAL:</td>
+                <td class="text-right" style="color: #dc3545;">KSh {{ "{:,.2f}".format(supplier.grand_total) }}</td>
+            </tr>
+        </tfoot>
+    </table>
+    
+    <!-- Payment Summary -->
+    <h3 style="color: #0d6832; margin-top: 30px;">PAYMENT SUMMARY</h3>
+    <table style="border: none; background-color: #f8f9fa;">
+        <tr>
+            <td style="border: none; width: 50%;"><strong>Total Purchase Amount:</strong></td>
+            <td style="border: none; text-align: right; color: #dc3545;"><strong>KSh {{ "{:,.2f}".format(supplier.grand_total) }}</strong></td>
+        </tr>
+        <tr>
+            <td style="border: none;"><strong>Amount Paid:</strong></td>
+            <td style="border: none; text-align: right; color: #28a745;"><strong>KSh {{ "{:,.2f}".format(supplier.amount_paid) }}</strong></td>
+        </tr>
+        <tr style="font-size: 14pt;">
+            <td style="border: none;"><strong>Outstanding Balance:</strong></td>
+            <td style="border: none; text-align: right; color: #ffc107;"><strong>KSh {{ "{:,.2f}".format(outstanding) }}</strong></td>
+        </tr>
+    </table>
+    
+    <!-- Payment History -->
+    {% if payments %}
+    <h3 style="color: #0d6832; margin-top: 30px;">PAYMENT HISTORY</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th class="text-right">Amount</th>
+                <th>Method</th>
+                <th>Reference</th>
+                <th>Recorded By</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for payment in payments %}
+            <tr>
+                <td>{{ payment.payment_date.strftime('%B %d, %Y') }}</td>
+                <td class="text-right"><strong>KSh {{ "{:,.2f}".format(payment.amount) }}</strong></td>
+                <td>{{ payment.payment_method }}</td>
+                <td>{{ payment.reference_number or '—' }}</td>
+                <td>{{ payment.recorded_by.name }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+    
+    <!-- Signatures -->
+    <div style="margin-top: 60px;">
+        <table style="border: none;">
+            <tr>
+                <td style="width: 50%; border: none;">
+                    <div style="border-top: 1px solid #000; padding-top: 5px; margin-top: 50px;">
+                        <strong>Supplier Signature:</strong><br>
+                        <small>Date: ______________________</small>
+                    </div>
+                </td>
+                <td style="width: 50%; border: none;">
+                    <div style="border-top: 1px solid #000; padding-top: 5px; margin-top: 50px;">
+                        <strong>Authorized By:</strong> {{ supplier.authorized_by.name if supplier.authorized_by else '______________________' }}<br>
+                        <small>Date: {{ supplier.authorization_date.strftime('%B %d, %Y') if supplier.authorization_date else '______________________' }}</small>
+                    </div>
+                </td>
+            </tr>
+        </table>
+    </div>
+    
+    <!-- Footer -->
+    <div class="footer">
+        <p><strong>Dunedeck Millers</strong> | Supplier Purchase Record</p>
+        <p>This is an official purchase record. Please retain for your records.</p>
+    </div>
+</body>
+</html>

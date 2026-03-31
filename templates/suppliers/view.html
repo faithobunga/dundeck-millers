@@ -1,0 +1,403 @@
+{% extends "base.html" %}
+
+{% block title %}{{ supplier.supplier_name }} - Dunedeck Millers{% endblock %}
+
+{% block content %}
+<!-- Print Header -->
+<div class="print-only" style="display: none;">
+    <img src="{{ url_for('static', filename='images/header.jpeg') }}" 
+         style="width: 100%; margin-bottom: 20px;">
+</div>
+
+<!-- Header -->
+<div class="row mb-4 no-print">
+    <div class="col-md-8">
+        <h2 class="fw-bold">
+            <i class="bi bi-building"></i> {{ supplier.supplier_name }}
+        </h2>
+        <p class="text-muted mb-0">Supplier Purchase Record</p>
+    </div>
+    <div class="col-md-4 text-md-end">
+        <a href="{{ url_for('suppliers_list') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Back
+        </a>
+        
+        {% if current_user.role in ['manager', 'admin'] %}
+        <!-- Only managers and admins can edit -->
+        <a href="{{ url_for('edit_supplier', supplier_id=supplier.id) }}" class="btn btn-warning">
+            <i class="bi bi-pencil"></i> Edit
+        </a>
+        {% endif %}
+        
+        <button class="btn btn-info" onclick="window.print()">
+            <i class="bi bi-printer"></i> Print
+        </button>
+        <a href="{{ url_for('download_supplier_pdf', supplier_id=supplier.id) }}" class="btn btn-danger">
+            <i class="bi bi-file-pdf"></i> PDF
+        </a>
+    </div>
+</div>
+
+<!-- Payment Status Alert -->
+<div class="row mb-4">
+    <div class="col-12">
+        {% if supplier.payment_status == 'paid' %}
+        <div class="alert alert-success">
+            <i class="bi bi-check-circle-fill"></i>
+            <strong>Fully Paid</strong> - KSh {{ "{:,.2f}".format(supplier.grand_total) }} paid in full
+        </div>
+        {% elif supplier.payment_status == 'partially_paid' %}
+        <div class="alert alert-warning">
+            <i class="bi bi-exclamation-triangle-fill"></i>
+            <strong>Partially Paid</strong> - KSh {{ "{:,.2f}".format(supplier.amount_paid) }} paid, 
+            KSh {{ "{:,.2f}".format(outstanding) }} outstanding
+        </div>
+        {% else %}
+        <div class="alert alert-danger">
+            <i class="bi bi-x-circle-fill"></i>
+            <strong>Unpaid</strong> - KSh {{ "{:,.2f}".format(supplier.grand_total) }} outstanding
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Financial Summary Cards -->
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card bg-danger text-white shadow-sm">
+            <div class="card-body text-center">
+                <h6 class="text-white-50">TOTAL PURCHASE</h6>
+                <h3 class="mb-0">KSh {{ "{:,.2f}".format(supplier.grand_total) }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card bg-success text-white shadow-sm">
+            <div class="card-body text-center">
+                <h6 class="text-white-50">AMOUNT PAID</h6>
+                <h3 class="mb-0">KSh {{ "{:,.2f}".format(supplier.amount_paid if supplier.amount_paid else 0) }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card bg-warning text-white shadow-sm">
+            <div class="card-body text-center">
+                <h6 class="text-white-50">OUTSTANDING</h6>
+                <h3 class="mb-0">KSh {{ "{:,.2f}".format(outstanding) }}</h3>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Left Column -->
+    <div class="col-md-6">
+        <!-- Supplier Information -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="bi bi-building"></i> Supplier Information</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-borderless mb-0">
+                    <tr>
+                        <th width="40%">Supplier Name:</th>
+                        <td class="fw-bold">{{ supplier.supplier_name }}</td>
+                    </tr>
+                    <tr>
+                        <th>KRA PIN:</th>
+                        <td>{{ supplier.kra_pin or 'Not provided' }}</td>
+                    </tr>
+                    <tr>
+                        <th>Phone:</th>
+                        <td>
+                            {% if supplier.phone_number %}
+                            <a href="tel:{{ supplier.phone_number }}">{{ supplier.phone_number }}</a>
+                            {% else %}
+                            Not provided
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>City:</th>
+                        <td>{{ supplier.city or 'Not provided' }}</td>
+                    </tr>
+                    <tr>
+                        <th>Address:</th>
+                        <td>{{ supplier.address or 'Not provided' }}</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Right Column -->
+    <div class="col-md-6">
+        <!-- Transaction Details -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-warning text-white">
+                <h5 class="mb-0"><i class="bi bi-receipt"></i> Transaction Details</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-borderless mb-0">
+                    <tr>
+                        <th width="40%">Transaction Date:</th>
+                        <td>{{ supplier.transaction_date.strftime('%B %d, %Y') }}</td>
+                    </tr>
+                    <tr>
+                        <th>Invoice Number:</th>
+                        <td>{{ supplier.invoice_number or 'N/A' }}</td>
+                    </tr>
+                    <tr>
+                        <th>LPO Number:</th>
+                        <td>{{ supplier.lpo_number or 'N/A' }}</td>
+                    </tr>
+                    <tr>
+                        <th>Reference Code:</th>
+                        <td>{{ supplier.reference_code or 'N/A' }}</td>
+                    </tr>
+                    <tr>
+                        <th>Authorized By:</th>
+                        <td>{{ supplier.authorized_by.name if supplier.authorized_by else 'N/A' }}</td>
+                    </tr>
+                    <tr>
+                        <th>Authorization Date:</th>
+                        <td>{{ supplier.authorization_date.strftime('%B %d, %Y') if supplier.authorization_date else 'N/A' }}</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Items Purchased -->
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-light">
+        <h5 class="mb-0"><i class="bi bi-box-seam"></i> Items Purchased ({{ supplier.items|length }})</h5>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover table-bordered mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th width="5%">#</th>
+                        <th width="25%">Product Type</th>
+                        <th width="15%">Quantity</th>
+                        <th width="15%">Total Weight (KG)</th>
+                        <th width="15%">Unit Price</th>
+                        <th width="10%">Basis</th>
+                        <th width="15%">Total Amount</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in supplier.items %}
+                    <tr>
+                        <td class="text-center">{{ loop.index }}</td>
+                        <td class="fw-semibold">{{ item.product_type }}</td>
+                        <td>
+                            {% if item.product_type == 'Maize Grains' %}
+                            <span class="badge bg-primary">{{ "%.2f"|format(item.total_bags if item.total_bags else 0) }} bags</span>
+                            {% else %}
+                            <span class="badge bg-info">{{ "%.2f"|format(item.quantity) }} kg</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ "%.2f"|format(item.total_weight if item.total_weight else 0) }} kg</td>
+                        <td>KSh {{ "{:,.2f}".format(item.unit_price) }}</td>
+                        <td>
+                            <small class="text-muted">
+                                {{ 'per bag' if item.price_basis == 'per_bag' else 'per kg' }}
+                            </small>
+                        </td>
+                        <td class="fw-bold text-success">KSh {{ "{:,.2f}".format(item.total_amount) }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot class="table-light">
+                    <tr>
+                        <th colspan="6" class="text-end">GRAND TOTAL:</th>
+                        <th class="text-success">KSh {{ "{:,.2f}".format(supplier.grand_total) }}</th>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Payment History -->
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-success text-white">
+        <div class="d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="bi bi-credit-card"></i> Payment History</h5>
+            {% if outstanding > 0 and current_user.role in ['manager', 'admin'] %}
+            <!-- Only managers and admins can add payments -->
+            <button class="btn btn-light btn-sm" data-bs-toggle="modal" data-bs-target="#addPaymentModal">
+                <i class="bi bi-plus-circle"></i> Add Payment
+            </button>
+            {% endif %}
+        </div>
+    </div>
+    <div class="card-body p-0">
+        {% if payments %}
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Payment Date</th>
+                        <th>Amount</th>
+                        <th>Method</th>
+                        <th>Reference</th>
+                        <th>Notes</th>
+                        <th>Recorded By</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for payment in payments %}
+                    <tr>
+                        <td>{{ payment.payment_date.strftime('%B %d, %Y') }}</td>
+                        <td class="fw-bold text-success">KSh {{ "{:,.2f}".format(payment.amount) }}</td>
+                        <td><span class="badge bg-secondary">{{ payment.payment_method }}</span></td>
+                        <td>{{ payment.reference_number or 'N/A' }}</td>
+                        <td>{{ payment.notes or '—' }}</td>
+                        <td><i class="bi bi-person"></i> {{ payment.recorded_by.name }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-4">
+            <i class="bi bi-credit-card" style="font-size: 3rem; color: #dee2e6;"></i>
+            <p class="text-muted mt-2">No payments recorded yet</p>
+            {% if current_user.role in ['manager', 'admin'] %}
+            <p class="text-muted"><small>Click "Add Payment" above to record a payment</small></p>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Add Payment Modal (Only for Managers/Admins) -->
+{% if current_user.role in ['manager', 'admin'] %}
+<div class="modal fade" id="addPaymentModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title"><i class="bi bi-plus-circle"></i> Add Payment</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="addPaymentForm">
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        <strong>Outstanding Balance:</strong> KSh {{ "{:,.2f}".format(outstanding) }}
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Payment Date *</label>
+                        <input type="date" class="form-control" name="payment_date" 
+                               value="{{ now().date().isoformat() }}" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Amount (KSh) *</label>
+                        <input type="number" step="0.01" class="form-control" name="amount" 
+                               max="{{ outstanding }}" required placeholder="0.00">
+                        <small class="text-muted">Maximum: KSh {{ "{:,.2f}".format(outstanding) }}</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Payment Method *</label>
+                        <select class="form-select" name="payment_method" required>
+                            <option value="">Select...</option>
+                            <option value="Cash">Cash</option>
+                            <option value="M-Pesa">M-Pesa</option>
+                            <option value="Bank Transfer">Bank Transfer</option>
+                            <option value="Cheque">Cheque</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Reference Number</label>
+                        <input type="text" class="form-control" name="reference_number" 
+                               placeholder="M-Pesa code, cheque number, etc.">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Notes</label>
+                        <textarea class="form-control" name="notes" rows="2" 
+                                  placeholder="Additional notes..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="bi bi-check-circle"></i> Add Payment
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Add Payment Form Handler (Only for Managers/Admins)
+{% if current_user.role in ['manager', 'admin'] %}
+document.getElementById('addPaymentForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(this);
+    const amount = parseFloat(formData.get('amount'));
+    const outstanding = {{ outstanding }};
+    
+    // Validate amount
+    if (amount <= 0) {
+        alert('Amount must be greater than zero');
+        return;
+    }
+    
+    if (amount > outstanding) {
+        alert(`Amount cannot exceed outstanding balance of KSh ${outstanding.toLocaleString('en-KE', {minimumFractionDigits: 2})}`);
+        return;
+    }
+    
+    // Disable submit button
+    const submitBtn = this.querySelector('button[type="submit"]');
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Processing...';
+    
+    fetch('{{ url_for("add_supplier_payment", supplier_id=supplier.id) }}', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            location.reload();
+        } else {
+            alert('Error: ' + data.message);
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="bi bi-check-circle"></i> Add Payment';
+        }
+    })
+    .catch(error => {
+        alert('Error adding payment. Please try again.');
+        console.error(error);
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="bi bi-check-circle"></i> Add Payment';
+    });
+});
+{% endif %}
+</script>
+
+<style>
+@media print {
+    .no-print { display: none !important; }
+    .print-only { display: block !important; }
+    .card { box-shadow: none !important; border: 1px solid #dee2e6 !important; }
+    body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+}
+</style>
+{% endblock %}

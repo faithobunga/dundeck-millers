@@ -378,13 +378,25 @@
 {% block extra_js %}
 <script>
 function viewUserDetails(userId) {
-    window.location.href = `/admin/user/${userId}/details`;
+    fetch(`/admin/user/${userId}/details`)
+        .then(r => r.json())
+        .then(data => {
+            alert(
+                `Name: ${data.name}\n` +
+                `Username: ${data.username}\n` +
+                `Role: ${data.role}\n` +
+                `Created: ${data.created_at}\n` +
+                `Last Login: ${data.last_login}\n` +
+                `Status: ${data.is_blocked ? 'BLOCKED' : 'Active'}\n` +
+                `Must Change Password: ${data.must_change_password ? 'Yes' : 'No'}`
+            );
+        })
+        .catch(() => alert('Could not load user details'));
 }
 
 function resetPassword(userId, userName) {
     document.getElementById('reset_user_id').value = userId;
     document.getElementById('reset_user_name').textContent = userName;
-    
     const modal = new bootstrap.Modal(document.getElementById('resetPasswordModal'));
     modal.show();
 }
@@ -393,64 +405,51 @@ document.getElementById('resetPasswordForm').addEventListener('submit', function
     e.preventDefault();
     const userId = document.getElementById('reset_user_id').value;
     const newPassword = document.getElementById('new_password').value;
-    
     const formData = new FormData();
     formData.append('new_password', newPassword);
-    
+
     fetch(`/admin/user/${userId}/reset-password`, {
         method: 'POST',
         body: formData
     })
-    .then(response => response.json())
+    .then(r => r.json())
     .then(data => {
         if (data.success) {
-            alert(`Password reset successfully!\nNew password: ${data.new_password}\n\nPlease share this with the user.`);
+            alert(`Password reset!\nNew password: ${data.new_password}\n\nShare this with the user.`);
             bootstrap.Modal.getInstance(document.getElementById('resetPasswordModal')).hide();
             location.reload();
         } else {
-            alert(data.message);
+            alert(data.message || 'Something went wrong');
         }
     });
 });
 
 function toggleBlock(userId, userName, isBlocked) {
     const action = isBlocked ? 'unblock' : 'block';
-    if (!confirm(`Are you sure you want to ${action} ${userName}?`)) {
-        return;
-    }
-    
-    fetch(`/admin/user/${userId}/block`, {
-        method: 'POST'
-    })
-    .then(response => response.json())
+    if (!confirm(`Are you sure you want to ${action} ${userName}?`)) return;
+
+    fetch(`/admin/user/${userId}/block`, { method: 'POST' })
+    .then(r => r.json())
     .then(data => {
         if (data.success) {
             location.reload();
         } else {
-            alert(data.message);
+            alert(data.message || 'Something went wrong');
         }
     });
 }
 
 function deleteUser(userId, userName) {
-    if (!confirm(`Are you sure you want to delete user "${userName}"?\n\nThis action cannot be undone and will delete all their sheets and entries.`)) {
-        return;
-    }
-    
-    if (!confirm(`FINAL WARNING: Delete ${userName} permanently?`)) {
-        return;
-    }
-    
-    fetch(`/admin/user/${userId}/delete`, {
-        method: 'POST'
-    })
-    .then(response => response.json())
+    if (!confirm(`Delete user "${userName}"?\nThis cannot be undone and will delete all their data.`)) return;
+    if (!confirm(`FINAL WARNING: Permanently delete ${userName}?`)) return;
+
+    fetch(`/admin/user/${userId}/delete`, { method: 'POST' })
+    .then(r => r.json())
     .then(data => {
         if (data.success) {
-            document.getElementById('user-' + userId).remove();
             location.reload();
         } else {
-            alert(data.message);
+            alert(data.message || 'Something went wrong');
         }
     });
 }
@@ -458,7 +457,6 @@ function deleteUser(userId, userName) {
 function approveResetRequest(requestId, userName) {
     document.getElementById('approve_request_id').value = requestId;
     document.getElementById('approve_user_name').textContent = userName;
-    
     const modal = new bootstrap.Modal(document.getElementById('approveResetModal'));
     modal.show();
 }
@@ -467,31 +465,37 @@ document.getElementById('approveResetForm').addEventListener('submit', function(
     e.preventDefault();
     const requestId = document.getElementById('approve_request_id').value;
     const newPassword = document.getElementById('approve_new_password').value;
-    
     const formData = new FormData();
     formData.append('new_password', newPassword);
-    
+
     fetch(`/admin/reset-request/${requestId}/approve`, {
         method: 'POST',
         body: formData
     })
-    .then(() => {
-        alert('Password reset approved! The user can now login with the new password.');
-        location.reload();
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            alert('Password reset approved! User can now login with the new password.');
+            bootstrap.Modal.getInstance(document.getElementById('approveResetModal')).hide();
+            location.reload();
+        } else {
+            alert(data.message || 'Something went wrong');
+        }
     });
 });
 
 function rejectResetRequest(requestId) {
-    if (!confirm('Reject this password reset request?')) {
-        return;
-    }
-    
-    fetch(`/admin/reset-request/${requestId}/reject`, {
-        method: 'POST'
-    })
-    .then(() => {
-        alert('Password reset request rejected.');
-        location.reload();
+    if (!confirm('Reject this password reset request?')) return;
+
+    fetch(`/admin/reset-request/${requestId}/reject`, { method: 'POST' })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            alert('Request rejected.');
+            location.reload();
+        } else {
+            alert(data.message || 'Something went wrong');
+        }
     });
 }
 </script>

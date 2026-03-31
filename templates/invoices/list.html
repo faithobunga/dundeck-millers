@@ -1,0 +1,246 @@
+{% extends "base.html" %}
+
+{% block title %}Invoices - Dunedeck Millers{% endblock %}
+
+{% block content %}
+<!-- Header -->
+<div class="row mb-4 no-print">
+    <div class="col-md-8">
+        <h2 class="fw-bold">
+            <i class="bi bi-receipt"></i> Invoice Management
+        </h2>
+        <p class="text-muted mb-0">Track all sales invoices and payments</p>
+    </div>
+    <div class="col-md-4 text-md-end">
+        <a href="{{ url_for('customers_list') }}" class="btn btn-outline-info me-2">
+            <i class="bi bi-folder2-open"></i> Customer Folders
+        </a>
+        {% if current_user.role in ['worker', 'manager', 'admin'] %}
+        <a href="{{ url_for('create_invoice') }}" class="btn btn-primary">
+            <i class="bi bi-plus-circle"></i> New Invoice
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Summary Cards -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card bg-primary text-white shadow-sm">
+            <div class="card-body text-center">
+                <h6 class="text-white-50">TOTAL INVOICES</h6>
+                <h2 class="mb-0">{{ invoices|length }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-success text-white shadow-sm">
+            <div class="card-body text-center">
+                <h6 class="text-white-50">TOTAL REVENUE</h6>
+                <h2 class="mb-0">KSh {{ "{:,.0f}".format(invoices|sum(attribute='grand_total')) }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-info text-white shadow-sm">
+            <div class="card-body text-center">
+                <h6 class="text-white-50">PAID</h6>
+                <h2 class="mb-0">{{ invoices|selectattr('payment_status', 'equalto', 'paid')|list|length }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-warning text-white shadow-sm">
+            <div class="card-body text-center">
+                <h6 class="text-white-50">UNPAID</h6>
+                <h2 class="mb-0">{{ invoices|selectattr('payment_status', 'equalto', 'unpaid')|list|length }}</h2>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Filter Tabs -->
+<div class="card shadow-sm mb-4">
+    <div class="card-body">
+        <div class="row align-items-center">
+            <div class="col-md-8">
+                <ul class="nav nav-pills" id="statusTabs">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="#" onclick="filterByStatus('all')">
+                            All <span class="badge bg-secondary ms-1">{{ invoices|length }}</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" onclick="filterByStatus('unpaid')">
+                            Unpaid <span class="badge bg-warning ms-1">{{ invoices|selectattr('payment_status', 'equalto', 'unpaid')|list|length }}</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" onclick="filterByStatus('partial')">
+                            Partial <span class="badge bg-info ms-1">{{ invoices|selectattr('payment_status', 'equalto', 'partial')|list|length }}</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" onclick="filterByStatus('paid')">
+                            Paid <span class="badge bg-success ms-1">{{ invoices|selectattr('payment_status', 'equalto', 'paid')|list|length }}</span>
+                        </a>
+                    </li>
+                </ul>
+            </div>
+            <div class="col-md-4 text-end">
+                <input type="text" id="searchInput" class="form-control" placeholder="Search invoices...">
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Invoices Table -->
+{% if invoices %}
+<div class="card shadow-sm">
+    <div class="card-header bg-light">
+        <h5 class="mb-0"><i class="bi bi-list-ul"></i> Invoice Records</h5>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0" id="invoicesTable">
+                <thead class="table-light">
+                    <tr>
+                        <th>Invoice No</th>
+                        <th>Date</th>
+                        <th>Customer</th>
+                        <th>Contact</th>
+                        <th>Total Amount</th>
+                        <th>Amount Paid</th>
+                        <th>Balance</th>
+                        <th>Payment Status</th>
+                        <th class="no-print">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for invoice in invoices %}
+                    <tr class="invoice-row" data-status="{{ invoice.payment_status }}">
+                        <td class="fw-bold">
+                            <i class="bi bi-receipt"></i> {{ invoice.invoice_number }}
+                            {% if invoice.is_auto_generated %}
+                            <br><small class="badge bg-secondary">Auto</small>
+                            {% endif %}
+                        </td>
+                        <td>{{ invoice.invoice_date.strftime('%Y-%m-%d') }}</td>
+                        <td class="fw-semibold">{{ invoice.customer_name }}</td>
+                        <td>
+                            {% if invoice.phone_number %}
+                            <a href="tel:{{ invoice.phone_number }}" class="text-decoration-none">
+                                <i class="bi bi-telephone"></i> {{ invoice.phone_number }}
+                            </a>
+                            {% else %}
+                            <span class="text-muted">N/A</span>
+                            {% endif %}
+                        </td>
+                        <td class="fw-bold">KSh {{ "{:,.2f}".format(invoice.grand_total) }}</td>
+                        <td class="text-success">KSh {{ "{:,.2f}".format(invoice.amount_paid) }}</td>
+                        <td class="{% if invoice.grand_total - invoice.amount_paid > 0 %}text-danger{% else %}text-success{% endif %}">
+                            KSh {{ "{:,.2f}".format(invoice.grand_total - invoice.amount_paid) }}
+                        </td>
+                        <td>
+                            {% if invoice.payment_status == 'unpaid' %}
+                            <span class="badge bg-warning">
+                                <i class="bi bi-exclamation-circle"></i> Unpaid
+                            </span>
+                            {% elif invoice.payment_status == 'partial' %}
+                            <span class="badge bg-info">
+                                <i class="bi bi-hourglass-split"></i> Partial
+                            </span>
+                            {% elif invoice.payment_status == 'paid' %}
+                            <span class="badge bg-success">
+                                <i class="bi bi-check-circle"></i> Paid
+                            </span>
+                            {% elif invoice.payment_status == 'completed' %}
+                            <span class="badge bg-dark">
+                                <i class="bi bi-check-all"></i> Completed
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td class="no-print">
+                            <div class="btn-group btn-group-sm">
+                                <a href="{{ url_for('view_invoice', invoice_id=invoice.id) }}" 
+                                   class="btn btn-outline-primary" title="View Details">
+                                    <i class="bi bi-eye"></i>
+                                </a>
+                                {% if invoice.dispatch_id %}
+                                <a href="{{ url_for('view_dispatch', dispatch_id=invoice.dispatch_id) }}" 
+                                   class="btn btn-outline-secondary" title="View Dispatch">
+                                    <i class="bi bi-truck"></i>
+                                </a>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="card shadow-sm">
+    <div class="card-body text-center py-5">
+        <i class="bi bi-receipt" style="font-size: 4rem; color: #dee2e6;"></i>
+        <h4 class="mt-3 text-muted">No Invoices Yet</h4>
+        <p class="text-muted">Start by creating your first invoice</p>
+        {% if current_user.role in ['worker', 'manager', 'admin'] %}
+        <a href="{{ url_for('create_invoice') }}" class="btn btn-primary mt-3">
+            <i class="bi bi-plus-circle"></i> Create First Invoice
+        </a>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function filterByStatus(status) {
+    const rows = document.querySelectorAll('.invoice-row');
+    const tabs = document.querySelectorAll('#statusTabs .nav-link');
+    
+    // Update active tab
+    tabs.forEach(tab => {
+        tab.classList.remove('active');
+    });
+    event.target.classList.add('active');
+    
+    // Filter rows
+    rows.forEach(row => {
+        const rowStatus = row.getAttribute('data-status');
+        if (status === 'all' || rowStatus === status) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
+    });
+    
+    return false;
+}
+
+// Search functionality
+document.getElementById('searchInput').addEventListener('keyup', function() {
+    const searchValue = this.value.toLowerCase();
+    const table = document.getElementById('invoicesTable');
+    const rows = table.getElementsByTagName('tbody')[0].getElementsByTagName('tr');
+    
+    for (let row of rows) {
+        const text = row.textContent.toLowerCase();
+        row.style.display = text.includes(searchValue) ? '' : 'none';
+    }
+});
+</script>
+
+<style>
+@media print {
+    .no-print {
+        display: none !important;
+    }
+}
+</style>
+{% endblock %}

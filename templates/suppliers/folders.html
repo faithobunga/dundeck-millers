@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+
+{% block title %}Supplier Folders - Dunedeck Millers{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h2 class="fw-bold">
+            <i class="bi bi-folder2-open"></i> Supplier Transaction Folders
+        </h2>
+        <p class="text-muted mb-0">View all purchases and payment history by supplier</p>
+    </div>
+    <div class="col-md-4 text-md-end">
+        <a href="{{ url_for('suppliers_list') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-truck"></i> All Suppliers
+        </a>
+    </div>
+</div>
+
+<!-- Summary Cards -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card bg-primary text-white shadow-sm">
+            <div class="card-body text-center">
+                <h6 class="text-white-50">TOTAL SUPPLIERS</h6>
+                <h2 class="mb-0">{{ suppliers|length }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-danger text-white shadow-sm">
+            <div class="card-body text-center">
+                <h6 class="text-white-50">TOTAL PURCHASED</h6>
+                <h2 class="mb-0">KSh {{ "{:,.0f}".format(suppliers|sum(attribute='total_purchased')) }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-success text-white shadow-sm">
+            <div class="card-body text-center">
+                <h6 class="text-white-50">TOTAL PAID</h6>
+                <h2 class="mb-0">KSh {{ "{:,.0f}".format(suppliers|sum(attribute='total_paid')) }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-warning text-white shadow-sm">
+            <div class="card-body text-center">
+                <h6 class="text-white-50">OUTSTANDING</h6>
+                <h2 class="mb-0">KSh {{ "{:,.0f}".format(suppliers|sum(attribute='outstanding')) }}</h2>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Suppliers Table -->
+{% if suppliers %}
+<div class="card shadow-sm">
+    <div class="card-header bg-light">
+        <div class="d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="bi bi-truck"></i> Supplier Folders ({{ suppliers|length }})</h5>
+            <input type="text" id="searchInput" class="form-control w-25" placeholder="Search suppliers...">
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0" id="suppliersTable">
+                <thead class="table-light">
+                    <tr>
+                        <th>Supplier Name</th>
+                        <th>Phone</th>
+                        <th>City</th>
+                        <th>Transactions</th>
+                        <th>Total Purchased</th>
+                        <th>Total Paid</th>
+                        <th>Outstanding</th>
+                        <th>Last Transaction</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for sup in suppliers %}
+                    <tr>
+                        <td class="fw-bold">{{ sup.name }}</td>
+                        <td>{{ sup.phone or '—' }}</td>
+                        <td>{{ sup.city or '—' }}</td>
+                        <td>
+                            <span class="badge bg-primary">
+                                {{ sup.total_transactions }} transaction{{ 's' if sup.total_transactions != 1 }}
+                            </span>
+                        </td>
+                        <td class="fw-bold text-danger">KSh {{ "{:,.2f}".format(sup.total_purchased) }}</td>
+                        <td class="text-success">KSh {{ "{:,.2f}".format(sup.total_paid) }}</td>
+                        <td class="fw-bold {% if sup.outstanding > 0 %}text-warning{% else %}text-success{% endif %}">
+                            KSh {{ "{:,.2f}".format(sup.outstanding) }}
+                        </td>
+                        <td>{{ sup.last_transaction_date.strftime('%b %d, %Y') if sup.last_transaction_date else '—' }}</td>
+                        <td>
+                            <a href="{{ url_for('supplier_folder', supplier_name=sup.name) }}"
+                               class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-folder2-open"></i> Open Folder
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="card shadow-sm">
+    <div class="card-body text-center py-5">
+        <i class="bi bi-truck" style="font-size: 4rem; color: #dee2e6;"></i>
+        <h4 class="mt-3 text-muted">No Suppliers Yet</h4>
+        <p class="text-muted">Suppliers will appear here after creating supplier records</p>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.getElementById('searchInput').addEventListener('keyup', function() {
+    const searchValue = this.value.toLowerCase();
+    const table = document.getElementById('suppliersTable');
+    const rows = table.getElementsByTagName('tbody')[0].getElementsByTagName('tr');
+    for (let row of rows) {
+        const text = row.textContent.toLowerCase();
+        row.style.display = text.includes(searchValue) ? '' : 'none';
+    }
+});
+</script>
+{% endblock %}

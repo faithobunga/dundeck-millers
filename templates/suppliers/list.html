@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+
+{% block title %}Suppliers - Dunedeck Millers{% endblock %}
+
+{% block content %}
+<!-- Header -->
+<div class="row mb-4 no-print">
+    <div class="col-md-8">
+        <h2 class="fw-bold">
+            <i class="bi bi-truck"></i> Supplier Management
+        </h2>
+        <p class="text-muted mb-0">Track all supplier purchases and deliveries</p>
+    </div>
+    <div class="col-md-4 text-md-end">
+        <a href="{{ url_for('create_supplier') }}" class="btn btn-primary">
+            <i class="bi bi-plus-circle"></i> New Supplier Record
+        </a>
+    </div>
+</div>
+
+<!-- Summary Cards -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card bg-primary text-white shadow-sm">
+            <div class="card-body text-center">
+                <h6 class="text-white-50">TOTAL SUPPLIERS</h6>
+                <h2 class="mb-0">{{ suppliers|length }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-success text-white shadow-sm">
+            <div class="card-body text-center">
+                <h6 class="text-white-50">THIS MONTH</h6>
+                <h2 class="mb-0">
+                    {% set this_month = suppliers|selectattr('transaction_date', 'ge', (now().date().replace(day=1)))|list %}
+                    {{ this_month|length }}
+                </h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-warning text-white shadow-sm">
+            <div class="card-body text-center">
+                <h6 class="text-white-50">TOTAL PURCHASES</h6>
+                <h2 class="mb-0">KSh {{ "{:,.0f}".format(suppliers|sum(attribute='grand_total')) }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-info text-white shadow-sm">
+            <div class="card-body text-center">
+                <h6 class="text-white-50">AVG ORDER VALUE</h6>
+                <h2 class="mb-0">
+                    {% if suppliers|length > 0 %}
+                    KSh {{ "{:,.0f}".format((suppliers|sum(attribute='grand_total')) / (suppliers|length)) }}
+                    {% else %}
+                    KSh 0
+                    {% endif %}
+                </h2>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Suppliers Table -->
+{% if suppliers %}
+<div class="card shadow-sm">
+    <div class="card-header bg-light">
+        <div class="d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="bi bi-list-ul"></i> Supplier Records</h5>
+            <input type="text" id="searchInput" class="form-control w-auto" placeholder="Search suppliers...">
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0" id="suppliersTable">
+                <thead class="table-light">
+    <tr>
+        <th>Transaction Date</th>
+        <th>Supplier Name</th>
+        <th>KRA PIN</th>
+        <th>Items</th>
+        <th>Grand Total</th>
+        <th>Amount Paid</th>
+        <th>Outstanding</th>
+        <th>Payment Status</th>
+        <th>Actions</th>
+    </tr>
+</thead>
+<tbody>
+    {% for supplier in suppliers %}
+    <tr>
+        <td>{{ supplier.transaction_date.strftime('%b %d, %Y') }}</td>
+        <td class="fw-bold">{{ supplier.supplier_name }}</td>
+        <td>{{ supplier.kra_pin or '—' }}</td>
+        <td><span class="badge bg-primary">{{ supplier.items|length }} items</span></td>
+        <td class="fw-bold text-danger">KSh {{ "{:,.2f}".format(supplier.grand_total) }}</td>
+        <td class="text-success">KSh {{ "{:,.2f}".format(supplier.amount_paid) }}</td>
+        <td class="fw-bold text-warning">KSh {{ "{:,.2f}".format(supplier.grand_total - supplier.amount_paid) }}</td>
+        <td>
+            {% if supplier.payment_status == 'paid' %}
+            <span class="badge bg-success"><i class="bi bi-check-circle"></i> Paid</span>
+            {% elif supplier.payment_status == 'partially_paid' %}
+            <span class="badge bg-warning"><i class="bi bi-exclamation-circle"></i> Partial</span>
+            {% else %}
+            <span class="badge bg-danger"><i class="bi bi-x-circle"></i> Unpaid</span>
+            {% endif %}
+        </td>
+        <td>
+            <div class="btn-group btn-group-sm">
+                <a href="{{ url_for('view_supplier', supplier_id=supplier.id) }}" 
+                   class="btn btn-outline-primary" title="View">
+                    <i class="bi bi-eye"></i>
+                </a>
+                <a href="{{ url_for('edit_supplier', supplier_id=supplier.id) }}" 
+                   class="btn btn-outline-warning" title="Edit">
+                    <i class="bi bi-pencil"></i>
+                </a>
+                <a href="{{ url_for('download_supplier_pdf', supplier_id=supplier.id) }}" 
+                   class="btn btn-outline-danger" title="PDF">
+                    <i class="bi bi-file-pdf"></i>
+                </a>
+            </div>
+        </td>
+    </tr>
+    {% endfor %}
+</tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="card shadow-sm">
+    <div class="card-body text-center py-5">
+        <i class="bi bi-truck" style="font-size: 4rem; color: #dee2e6;"></i>
+        <h4 class="mt-3 text-muted">No Supplier Records Yet</h4>
+        <p class="text-muted">Start by creating your first supplier record</p>
+        <a href="{{ url_for('create_supplier') }}" class="btn btn-primary mt-3">
+            <i class="bi bi-plus-circle"></i> Create First Supplier Record
+        </a>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Search functionality
+document.getElementById('searchInput').addEventListener('keyup', function() {
+    const searchValue = this.value.toLowerCase();
+    const table = document.getElementById('suppliersTable');
+    const rows = table.getElementsByTagName('tbody')[0].getElementsByTagName('tr');
+    
+    for (let row of rows) {
+        const text = row.textContent.toLowerCase();
+        row.style.display = text.includes(searchValue) ? '' : 'none';
+    }
+});
+
+// Print functionality
+function printSuppliers() {
+    window.print();
+}
+</script>
+
+<style>
+@media print {
+    .no-print {
+        display: none !important;
+    }
+    
+    .card {
+        box-shadow: none !important;
+        border: 1px solid #dee2e6 !important;
+    }
+    
+    .table {
+        font-size: 11px;
+    }
+}
+</style>
+{% endblock %}

@@ -2,171 +2,711 @@
 
 {% block title %}Director Dashboard - Dunedeck Millers{% endblock %}
 
+{% block extra_css %}
+<style>
+    .director-banner {
+        background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+        color: white;
+        padding: 30px;
+        border-radius: 10px;
+        margin-bottom: 30px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    
+    .time-display {
+        font-size: 2rem;
+        font-weight: bold;
+        font-family: 'Courier New', monospace;
+    }
+    
+    .critical-alert {
+        background: #fef3c7;
+        border-left: 5px solid #f59e0b;
+        padding: 15px;
+        margin-top: 15px;
+        border-radius: 5px;
+        font-weight: 600;
+        color: #92400e;
+    }
+    
+    .kpi-card {
+        border-radius: 10px;
+        padding: 20px;
+        text-align: center;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        height: 100%;
+        transition: transform 0.2s;
+    }
+    
+    .kpi-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+    }
+    
+    .kpi-value {
+        font-size: 2rem;
+        font-weight: bold;
+        margin: 10px 0;
+    }
+    
+    .kpi-label {
+        font-size: 0.85rem;
+        text-transform: uppercase;
+        opacity: 0.85;
+    }
+    
+    .stock-card {
+        border-radius: 8px;
+        padding: 15px;
+        margin-bottom: 15px;
+    }
+    
+    .stock-healthy {
+        background: #d1fae5;
+        border-left: 4px solid #10b981;
+    }
+    
+    .stock-low {
+        background: #fef3c7;
+        border-left: 4px solid #f59e0b;
+    }
+    
+    .stock-critical {
+        background: #fee2e2;
+        border-left: 4px solid #ef4444;
+    }
+    
+    .status-clocked-in {
+        color: #10b981;
+        font-weight: bold;
+    }
+    
+    .status-clocked-out {
+        color: #6b7280;
+    }
+    
+    .tab-pane {
+        padding: 20px;
+        background: white;
+        border-radius: 0 0 10px 10px;
+    }
+    
+    .chart-container {
+        height: 300px;
+        margin: 20px 0;
+    }
+
+    /* Read-only badge for director */
+    .director-readonly-badge {
+        background: #e0e7ff;
+        color: #3730a3;
+        padding: 3px 10px;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
-<!-- Alerts -->
-{% if alerts %}
-<div class="row mb-3">
-    <div class="col-12">
-        {% for alert in alerts %}
-        <div class="alert alert-{{ 'danger' if alert.level == 'critical' else 'warning' }} alert-dismissible fade show">
-            <i class="bi bi-exclamation-triangle-fill"></i>
-            <strong>{{ alert.product }}:</strong> {{ alert.message }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+
+<!-- GREETING BANNER -->
+<div class="director-banner">
+    <div class="row align-items-center">
+        <div class="col-md-8">
+            <h1 class="mb-2">
+                <i class="bi bi-eye"></i> Welcome, {{ current_user.name }}
+            </h1>
+            <p class="mb-0 opacity-75">Director Executive Dashboard — Real-Time Business Overview <span class="director-readonly-badge">READ ONLY</span></p>
         </div>
-        {% endfor %}
+        <div class="col-md-4 text-end">
+            <div class="mb-2">
+                <small class="opacity-75">TODAY</small>
+                <div style="font-size: 1.2rem;">{{ today.strftime('%A, %B %d, %Y') }}</div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- DUAL TIME DISPLAY -->
+    <div class="row mt-4">
+        <div class="col-md-6 text-center">
+            <small class="opacity-75">YOUR LOCAL TIME</small>
+            <div class="time-display" id="localTime">--:--:--</div>
+        </div>
+        <div class="col-md-6 text-center">
+            <small class="opacity-75">WAREHOUSE TIME (Kenya — EAT)</small>
+            <div class="time-display" id="kenyaTime">--:--:--</div>
+        </div>
+    </div>
+    
+    <!-- CRITICAL ALERT -->
+    <div class="critical-alert mt-3">
+        <i class="bi bi-exclamation-triangle-fill"></i>
+        <strong>STATUS:</strong> {{ critical_alert }}
     </div>
 </div>
-{% endif %}
 
-<!-- Header -->
-<div class="row mb-4">
-    <div class="col-md-6">
-        <h2 class="fw-bold"><i class="bi bi-eye"></i> Director Dashboard</h2>
-        <p class="text-muted mb-0">View-only production monitoring</p>
-    </div>
-    <div class="col-md-6 text-md-end">
-        <input type="date" id="dateSelector" class="form-control d-inline-block w-auto" 
-               value="{{ selected_date }}" onchange="changeDate()">
-        <a href="{{ url_for('export_csv', date=selected_date) }}" class="btn btn-success ms-2">
-            <i class="bi bi-download"></i> Export CSV
-        </a>
-    </div>
-</div>
-
-<!-- Info Banner -->
-<div class="alert alert-info mb-4">
-    <i class="bi bi-info-circle"></i> You have view-only access. Contact your manager to make changes to sheets.
-</div>
-
-<!-- Inventory Summary -->
-<h4 class="mb-3"><i class="bi bi-box-seam"></i> Inventory Overview</h4>
-<div class="row mb-4">
-    {% for inv in inventories %}
-    <div class="col-md-6 col-lg-3 mb-3">
-        <div class="card shadow-sm {% if inv.is_critical_stock() %}border-danger{% elif inv.is_low_stock() %}border-warning{% endif %}">
-            <div class="card-header bg-light">
-                <h6 class="mb-0 fw-bold">{{ inv.product_type }}</h6>
-            </div>
-            <div class="card-body">
-                <div class="mb-3">
-                    <small class="text-muted d-block">Total Received</small>
-                    <h4 class="text-success mb-0">
-                        <i class="bi bi-arrow-down-circle"></i> {{ "%.1f"|format(inv.total_received_bags) }} bags
-                    </h4>
-                </div>
-                <div class="mb-3">
-                    <small class="text-muted d-block">Total Out Stock</small>
-                    <h4 class="text-danger mb-0">
-                        <i class="bi bi-arrow-up-circle"></i> {{ "%.1f"|format(inv.total_outstock_bags) }} bags
-                    </h4>
-                </div>
-                {% if inv.total_lost_bags > 0 %}
-                <div class="mb-3">
-                    <small class="text-muted d-block">Lost/Damaged</small>
-                    <h4 class="text-warning mb-0">
-                        <i class="bi bi-exclamation-triangle"></i> {{ "%.1f"|format(inv.total_lost_bags) }} bags
-                    </h4>
-                </div>
-                {% endif %}
-                <hr>
-                <div>
-                    <small class="text-muted d-block">REMAINING STOCK</small>
-                    <h3 class="mb-0" style="color: {% if inv.is_critical_stock() %}var(--dm-red){% elif inv.is_low_stock() %}#ffc107{% else %}var(--dm-green){% endif %}">
-                        <i class="bi bi-box"></i> {{ "%.1f"|format(inv.remaining_bags) }} bags
-                    </h3>
-                </div>
-                <small class="text-muted">Last updated: {{ inv.last_updated.strftime('%I:%M %p') }}</small>
-            </div>
+<!-- 6 KPI CARDS -->
+<div class="row mb-4 g-3">
+    <div class="col-md-2">
+        <div class="kpi-card bg-success text-white">
+            <div class="kpi-label">Revenue This Month</div>
+            <div class="kpi-value">{{ "{:,.0f}".format(total_revenue) }}</div>
+            <small>KES</small>
         </div>
     </div>
-    {% endfor %}
-</div>
-
-<!-- Daily Statistics -->
-<h4 class="mb-3"><i class="bi bi-calendar-check"></i> Daily Statistics ({{ selected_date.strftime('%B %d, %Y') }})</h4>
-<div class="row mb-4">
-    <div class="col-md-3">
-        <div class="card border-0 shadow-sm">
-            <div class="card-body">
-                <h6 class="text-muted mb-1">Workers Active</h6>
-                <h3 class="mb-0">{{ daily_stats.total_workers }}</h3>
-            </div>
+    <div class="col-md-2">
+        <div class="kpi-card bg-danger text-white">
+            <div class="kpi-label">Purchases This Month</div>
+            <div class="kpi-value">{{ "{:,.0f}".format(total_purchases) }}</div>
+            <small>KES</small>
         </div>
     </div>
-    <div class="col-md-3">
-        <div class="card border-0 shadow-sm">
-            <div class="card-body">
-                <h6 class="text-muted mb-1">Daily Weights</h6>
-                <h3 class="mb-0">{{ daily_stats.daily_count }}</h3>
-            </div>
+    <div class="col-md-2">
+        <div class="kpi-card {% if gross_profit >= 0 %}bg-primary{% else %}bg-warning{% endif %} text-white">
+            <div class="kpi-label">Gross Profit</div>
+            <div class="kpi-value">{{ "{:,.0f}".format(gross_profit) }}</div>
+            <small>KES</small>
         </div>
     </div>
-    <div class="col-md-3">
-        <div class="card border-0 shadow-sm">
-            <div class="card-body">
-                <h6 class="text-muted mb-1">Received Batches</h6>
-                <h3 class="mb-0">{{ daily_stats.received_count }}</h3>
-            </div>
+    <div class="col-md-2">
+        <div class="kpi-card bg-info text-white">
+            <div class="kpi-label">Raw Stock</div>
+            <div class="kpi-value">{{ "{:,.0f}".format(raw_stock) }}</div>
+            <small>bags remaining</small>
         </div>
     </div>
-    <div class="col-md-3">
-        <div class="card border-0 shadow-sm">
-            <div class="card-body">
-                <h6 class="text-muted mb-1">Out Stock</h6>
-                <h3 class="mb-0">{{ daily_stats.outstock_count }}</h3>
-            </div>
+    <div class="col-md-2">
+        <div class="kpi-card bg-secondary text-white">
+            <div class="kpi-label">Packaged Stock</div>
+            <div class="kpi-value">{{ "{:,.0f}".format(packaged_stock_bales) }}</div>
+            <small>bales remaining</small>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="kpi-card bg-dark text-white">
+            <div class="kpi-label">Workers At Warehouse</div>
+            <div class="kpi-value">{{ workers_clocked_in }}</div>
+            <small>clocked in now</small>
         </div>
     </div>
 </div>
 
-<!-- Recent Activity -->
-<h4 class="mb-3"><i class="bi bi-activity"></i> Recent Activity</h4>
-<div class="card shadow-sm">
+<!-- FINANCIAL PERFORMANCE SECTION -->
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-dark text-white">
+        <h4 class="mb-0"><i class="bi bi-graph-up"></i> Financial Performance</h4>
+    </div>
     <div class="card-body">
-        {% if activities %}
+        <ul class="nav nav-tabs" role="tablist">
+            <li class="nav-item">
+                <a class="nav-link active" data-bs-toggle="tab" href="#tab-daily">Daily</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" data-bs-toggle="tab" href="#tab-weekly">Weekly</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" data-bs-toggle="tab" href="#tab-monthly">Monthly</a>
+            </li>
+        </ul>
+        
+        <div class="tab-content">
+
+            <!-- DAILY TAB -->
+            <div class="tab-pane fade show active" id="tab-daily">
+                <div class="row mt-3 mb-3">
+                    <div class="col-md-4">
+                        <div class="card border-success">
+                            <div class="card-body text-center">
+                                <div class="text-muted small">Today's Sales</div>
+                                <div class="fw-bold fs-4 text-success">KES {{ "{:,.2f}".format(financial_tabs.daily.revenue) }}</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card border-danger">
+                            <div class="card-body text-center">
+                                <div class="text-muted small">Today's Purchases</div>
+                                <div class="fw-bold fs-4 text-danger">KES {{ "{:,.2f}".format(financial_tabs.daily.purchases) }}</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card border-primary">
+                            <div class="card-body text-center">
+                                <div class="text-muted small">Today's Profit</div>
+                                <div class="fw-bold fs-4 {% if financial_tabs.daily.profit >= 0 %}text-primary{% else %}text-danger{% endif %}">
+                                    KES {{ "{:,.2f}".format(financial_tabs.daily.profit) }}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Chart -->
+                <div class="chart-container">
+                    <canvas id="revenueChart"></canvas>
+                </div>
+                
+                <!-- Customer Financial Summary -->
+                <h5 class="mt-4 mb-3"><i class="bi bi-people"></i> Customer Financial Summary</h5>
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Customer Name</th>
+                                <th>Total Invoiced</th>
+                                <th>Total Paid</th>
+                                <th>Outstanding Balance</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for customer, data in customers.items() %}
+                            <tr>
+                                <td><strong>{{ customer }}</strong></td>
+                                <td>KES {{ "{:,.2f}".format(data.total_invoiced) }}</td>
+                                <td class="text-success">KES {{ "{:,.2f}".format(data.total_paid) }}</td>
+                                <td class="{% if data.outstanding > 0 %}text-danger fw-bold{% endif %}">
+                                    KES {{ "{:,.2f}".format(data.outstanding) }}
+                                </td>
+                                <td>
+                                    <a href="{{ url_for('customer_folder', customer_name=customer) }}" class="btn btn-sm btn-outline-primary">
+                                        <i class="bi bi-folder-open"></i> View Folder
+                                    </a>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="5" class="text-center text-muted">No customer data yet</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- Supplier Financial Summary -->
+                <h5 class="mt-4 mb-3"><i class="bi bi-truck"></i> Supplier Financial Summary</h5>
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Supplier Name</th>
+                                <th>Total Purchased</th>
+                                <th>Total Paid</th>
+                                <th>Outstanding Balance</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for supplier, data in suppliers.items() %}
+                            <tr>
+                                <td><strong>{{ supplier }}</strong></td>
+                                <td>KES {{ "{:,.2f}".format(data.total_purchased) }}</td>
+                                <td class="text-success">KES {{ "{:,.2f}".format(data.total_paid) }}</td>
+                                <td class="{% if data.outstanding > 0 %}text-danger fw-bold{% endif %}">
+                                    KES {{ "{:,.2f}".format(data.outstanding) }}
+                                </td>
+                                <td>
+                                    {% if data.outstanding <= 0 %}
+                                    <span class="badge bg-success">Paid</span>
+                                    {% elif data.total_paid > 0 %}
+                                    <span class="badge bg-warning text-dark">Partial</span>
+                                    {% else %}
+                                    <span class="badge bg-danger">Unpaid</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <a href="{{ url_for('supplier_folder', supplier_name=supplier) }}" class="btn btn-sm btn-outline-primary">
+                                        <i class="bi bi-folder-open"></i> View Folder
+                                    </a>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="6" class="text-center text-muted">No supplier data yet</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- WEEKLY TAB -->
+            <div class="tab-pane fade" id="tab-weekly">
+                <div class="row mt-3">
+                    <div class="col-md-4">
+                        <div class="card border-success">
+                            <div class="card-body text-center">
+                                <div class="text-muted small">This Week's Sales</div>
+                                <div class="fw-bold fs-4 text-success">KES {{ "{:,.2f}".format(financial_tabs.weekly.revenue) }}</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card border-danger">
+                            <div class="card-body text-center">
+                                <div class="text-muted small">This Week's Purchases</div>
+                                <div class="fw-bold fs-4 text-danger">KES {{ "{:,.2f}".format(financial_tabs.weekly.purchases) }}</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card border-primary">
+                            <div class="card-body text-center">
+                                <div class="text-muted small">This Week's Profit</div>
+                                <div class="fw-bold fs-4 {% if financial_tabs.weekly.profit >= 0 %}text-primary{% else %}text-danger{% endif %}">
+                                    KES {{ "{:,.2f}".format(financial_tabs.weekly.profit) }}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MONTHLY TAB -->
+            <div class="tab-pane fade" id="tab-monthly">
+                <div class="row mt-3">
+                    <div class="col-md-4">
+                        <div class="card border-success">
+                            <div class="card-body text-center">
+                                <div class="text-muted small">This Month's Sales</div>
+                                <div class="fw-bold fs-4 text-success">KES {{ "{:,.2f}".format(financial_tabs.monthly.revenue) }}</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card border-danger">
+                            <div class="card-body text-center">
+                                <div class="text-muted small">This Month's Purchases</div>
+                                <div class="fw-bold fs-4 text-danger">KES {{ "{:,.2f}".format(financial_tabs.monthly.purchases) }}</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card border-primary">
+                            <div class="card-body text-center">
+                                <div class="text-muted small">This Month's Profit</div>
+                                <div class="fw-bold fs-4 {% if financial_tabs.monthly.profit >= 0 %}text-primary{% else %}text-danger{% endif %}">
+                                    KES {{ "{:,.2f}".format(financial_tabs.monthly.profit) }}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<!-- RAW UNPROCESSED STOCK -->
+<div class="card shadow-sm mb-3">
+    <div class="card-header bg-warning">
+        <h5 class="mb-0"><i class="bi bi-archive"></i> Raw Unprocessed Stock</h5>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            {% for item in unprocessed_inventory %}
+            {% set stock_class = 'stock-healthy' if item.remaining_bags > 20 else ('stock-low' if item.remaining_bags > 10 else 'stock-critical') %}
+            <div class="col-md-3">
+                <div class="stock-card {{ stock_class }}">
+                    <h6 class="mb-2 fw-bold">{{ item.product_type }}</h6>
+                    <div class="row text-center">
+                        <div class="col-4">
+                            <small class="text-muted d-block">Received</small>
+                            <div class="fw-bold">{{ "{:,.1f}".format(item.total_received_bags) }}</div>
+                            <small>bags</small>
+                        </div>
+                        <div class="col-4">
+                            <small class="text-muted d-block">Out/Lost</small>
+                            <div class="fw-bold">{{ "{:,.1f}".format(item.total_outstock_bags + item.total_lost_bags) }}</div>
+                            <small>bags</small>
+                        </div>
+                        <div class="col-4">
+                            <small class="text-muted d-block">Remaining</small>
+                            <div class="fw-bold" style="font-size: 1.5rem;">{{ "{:,.1f}".format(item.remaining_bags) }}</div>
+                            <small>bags</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <div class="col-12 text-center text-muted py-3">No raw stock data yet</div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<!-- PACKAGED PROCESSED STOCK -->
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-success text-white">
+        <h5 class="mb-0"><i class="bi bi-box-seam"></i> Packaged Processed Stock</h5>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            {% for item in processed_inventory %}
+            {% set stock_class = 'stock-critical' if item.remaining < 50 else ('stock-low' if item.remaining < 100 else 'stock-healthy') %}
+            <div class="col-md-3">
+                <div class="stock-card {{ stock_class }}">
+                    <h6 class="mb-2 fw-bold">{{ item.product_name }}</h6>
+                    <div class="text-center">
+                        <small class="text-muted d-block">Remaining Units</small>
+                        <div class="fw-bold" style="font-size: 1.5rem;">{{ "{:,.0f}".format(item.remaining) }}</div>
+                        <small class="text-muted">
+                            {% if '1KG' in item.product_name %}
+                            {{ "{:,.1f}".format(item.remaining / 24) }} bales &bull; {{ "{:,.0f}".format(item.remaining * 1) }} KG
+                            {% elif '2KG' in item.product_name %}
+                            {{ "{:,.1f}".format(item.remaining / 12) }} bales &bull; {{ "{:,.0f}".format(item.remaining * 2) }} KG
+                            {% else %}
+                            {{ "{:,.1f}".format(item.total_weight_kg) }} KG total
+                            {% endif %}
+                        </small>
+                    </div>
+                    <hr class="my-2">
+                    <div class="row text-center">
+                        <div class="col-6">
+                            <small class="text-muted d-block">Packaged</small>
+                            <div class="fw-bold small">{{ "{:,.0f}".format(item.total_quantity) }}</div>
+                        </div>
+                        <div class="col-6">
+                            <small class="text-muted d-block">Dispatched</small>
+                            <div class="fw-bold small">{{ "{:,.0f}".format(item.total_dispatched) }}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <div class="col-12 text-center text-muted py-3">No packaged stock data yet</div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<!-- WORKER ATTENDANCE -->
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-primary text-white">
+        <h5 class="mb-0"><i class="bi bi-person-check"></i> Worker Attendance & Performance</h5>
+    </div>
+    <div class="card-body">
         <div class="table-responsive">
             <table class="table table-hover">
-                <thead>
+                <thead class="table-light">
                     <tr>
-                        <th>Date & Time</th>
-                        <th>Type</th>
-                        <th>Product</th>
-                        <th>Bags</th>
-                        <th>Worker</th>
-                        <th>Action</th>
+                        <th>Worker Name</th>
+                        <th>Status</th>
+                        <th>Clock In Time</th>
+                        <th>Hours Today</th>
+                        <th>Sheets This Week</th>
+                        <th>Last Login</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {% for activity in activities %}
+                    {% for data in worker_attendance %}
                     <tr>
-                        <td class="text-muted">{{ activity.date.strftime('%b %d, %I:%M %p') }}</td>
+                        <td><strong>{{ data.worker.name }}</strong></td>
                         <td>
-                            {% if activity.type == 'Received' %}
-                            <span class="badge bg-success">{{ activity.type }}</span>
-                            {% elif activity.type == 'Out Stock' %}
-                            <span class="badge bg-danger">{{ activity.type }}</span>
-                            {% elif activity.type == 'Lost/Damaged' %}
-                            <span class="badge bg-warning">{{ activity.type }}</span>
+                            {% if data.status == 'clocked_in' %}
+                            <span class="status-clocked-in">
+                                <i class="bi bi-check-circle-fill"></i> CLOCKED IN
+                            </span>
+                            {% else %}
+                            <span class="status-clocked-out">
+                                <i class="bi bi-x-circle"></i> Clocked Out
+                            </span>
                             {% endif %}
                         </td>
-                        <td>{{ activity.product }}</td>
-                        <td>{{ "%.2f"|format(activity.bags) }} bags</td>
-                        <td>{{ activity.worker }}</td>
                         <td>
-                            <a href="{{ url_for('view_sheet', sheet_id=activity.sheet_id) }}" class="btn btn-sm btn-outline-primary">
-                                <i class="bi bi-eye"></i> View
-                            </a>
+                            {% if data.clock_in_time %}
+                            {{ data.clock_in_time.strftime('%I:%M %p') }}
+                            {% else %}
+                            —
+                            {% endif %}
                         </td>
+                        <td>{{ data.hours_today }} hrs</td>
+                        <td>{{ data.sheets_this_week }}</td>
+                        <td>
+                            {% if data.last_login %}
+                            {{ data.last_login.strftime('%b %d, %I:%M %p') }}
+                            {% else %}
+                            Never
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6" class="text-center text-muted">No workers found</td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
-        {% else %}
-        <div class="text-center py-4 text-muted">
-            <i class="bi bi-inbox" style="font-size: 3rem;"></i>
-            <p class="mt-3">No recent activity</p>
+    </div>
+</div>
+
+<!-- DISPATCH TRACKING -->
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-info text-white">
+        <h5 class="mb-0"><i class="bi bi-truck"></i> Recent Dispatches (Last 30 Days)</h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead class="table-light">
+                    <tr>
+                        <th>Date</th>
+                        <th>Tracking No.</th>
+                        <th>Bales</th>
+                        <th>Total Weight (KG)</th>
+                        <th>Driver</th>
+                        <th>Vehicle</th>
+                        <th>Authorization</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for data in recent_dispatches %}
+                    <tr>
+                        <td>{{ data.dispatch.dispatch_date.strftime('%Y-%m-%d') }}</td>
+                        <td class="fw-bold">{{ data.dispatch.tracking_number }}</td>
+                        <td>{{ data.total_bales }}</td>
+                        <td>{{ data.total_weight }} kg</td>
+                        <td>{{ data.dispatch.driver_name or '—' }}</td>
+                        <td>{{ data.dispatch.vehicle_registration or '—' }}</td>
+                        <td>
+                            {% if data.dispatch.authorized_by_id %}
+                            <span class="badge bg-success">✓ Authorized</span>
+                            {% else %}
+                            <span class="badge bg-danger">⚠ Not Authorized</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="text-center text-muted">No dispatches in the last 30 days</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
+    </div>
+</div>
+
+<!-- AUDIT TRAIL -->
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-secondary text-white">
+        <h5 class="mb-0"><i class="bi bi-shield-check"></i> System Audit Trail (Last 50 Actions)</h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-sm">
+                <thead class="table-light">
+                    <tr>
+                        <th>Timestamp</th>
+                        <th>User</th>
+                        <th>Action</th>
+                        <th>Table</th>
+                        <th>Record ID</th>
+                        <th>IP Address</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for audit in recent_audits %}
+                    <tr>
+                        <td><small>{{ audit.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</small></td>
+                        <td><strong>{{ audit.user.name }}</strong></td>
+                        <td><span class="badge bg-primary">{{ audit.action }}</span></td>
+                        <td><small>{{ audit.table_name or '—' }}</small></td>
+                        <td><small>{{ audit.record_id or '—' }}</small></td>
+                        <td><small class="text-muted">{{ audit.ip_address or '—' }}</small></td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6" class="text-center text-muted">No audit records yet</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- REPORTS & DOWNLOADS -->
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-dark text-white">
+        <h5 class="mb-0"><i class="bi bi-file-earmark-pdf"></i> Reports & Downloads</h5>
+    </div>
+    <div class="card-body">
+        <div class="row g-2">
+            <div class="col-md-4">
+                <a href="{{ url_for('daily_report') }}" class="btn btn-outline-danger w-100">
+                    <i class="bi bi-file-pdf"></i> Daily Operations Report
+                </a>
+            </div>
+            <div class="col-md-4">
+                <a href="{{ url_for('weekly_report') }}" class="btn btn-outline-danger w-100">
+                    <i class="bi bi-file-pdf"></i> Weekly Summary Report
+                </a>
+            </div>
+            <div class="col-md-4">
+                <a href="{{ url_for('monthly_report') }}" class="btn btn-outline-danger w-100">
+                    <i class="bi bi-file-pdf"></i> Monthly Financial Report
+                </a>
+            </div>
+            <div class="col-md-4">
+                <a href="{{ url_for('product_movement_report') }}" class="btn btn-outline-danger w-100">
+                    <i class="bi bi-file-pdf"></i> Product Movement Report
+                </a>
+            </div>
+            <div class="col-md-4">
+                <a href="{{ url_for('packaging_list') }}" class="btn btn-outline-danger w-100">
+                    <i class="bi bi-file-pdf"></i> Packaging Records
+                </a>
+            </div>
+            <div class="col-md-4">
+                <a href="{{ url_for('export_csv') }}" class="btn btn-outline-success w-100">
+                    <i class="bi bi-file-earmark-spreadsheet"></i> Full Data Export (CSV)
+                </a>
+            </div>
+            <div class="col-md-4">
+                <a href="{{ url_for('suppliers_folders') }}" class="btn btn-outline-primary w-100">
+                    <i class="bi bi-folder2-open"></i> Supplier Folders
+                </a>
+            </div>
+            <div class="col-md-4">
+                <a href="{{ url_for('customers_list') }}" class="btn btn-outline-primary w-100">
+                    <i class="bi bi-folder2-open"></i> Customer Folders
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- NOTIFICATIONS HISTORY -->
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-warning">
+        <h5 class="mb-0"><i class="bi bi-bell"></i> Notifications History (Last 7 Days)</h5>
+    </div>
+    <div class="card-body">
+        {% if recent_notifications %}
+        <div class="list-group">
+            {% for notif in recent_notifications %}
+            <div class="list-group-item">
+                <div class="d-flex w-100 justify-content-between">
+                    <h6 class="mb-1">{{ notif.title }}</h6>
+                    <small class="text-muted">{{ notif.created_at.strftime('%b %d, %I:%M %p') }}</small>
+                </div>
+                <p class="mb-1">{{ notif.message }}</p>
+                <small class="badge bg-{{ 'danger' if notif.priority == 'critical' else ('warning' if notif.priority == 'high' else 'info') }}">
+                    {{ notif.priority|upper }}
+                </small>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-muted text-center py-3">
+            <i class="bi bi-bell-slash"></i> No notifications in the last 7 days
+        </p>
         {% endif %}
     </div>
 </div>
@@ -174,14 +714,79 @@
 {% endblock %}
 
 {% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-function changeDate() {
-    const date = document.getElementById('dateSelector').value;
-    window.location.href = "{{ url_for('director_dashboard') }}?date=" + date;
+// Dual Timezone Clock
+function updateClocks() {
+    const now = new Date();
+    
+    const localTime = now.toLocaleTimeString('en-US', { 
+        hour12: true, 
+        hour: '2-digit', 
+        minute: '2-digit',
+        second: '2-digit'
+    });
+    
+    const kenyaTime = now.toLocaleTimeString('en-US', { 
+        timeZone: 'Africa/Nairobi',
+        hour12: true, 
+        hour: '2-digit', 
+        minute: '2-digit',
+        second: '2-digit'
+    });
+    
+    document.getElementById('localTime').textContent = localTime;
+    document.getElementById('kenyaTime').textContent = kenyaTime;
 }
 
+setInterval(updateClocks, 1000);
+updateClocks();
+
+// Revenue vs Expenses Chart
+const chartData = {{ chart_data|tojson }};
+const ctx = document.getElementById('revenueChart').getContext('2d');
+new Chart(ctx, {
+    type: 'bar',
+    data: {
+        labels: chartData.map(d => d.date),
+        datasets: [
+            {
+                label: 'Revenue (KES)',
+                data: chartData.map(d => d.revenue),
+                backgroundColor: '#10b981',
+                borderColor: '#059669',
+                borderWidth: 1
+            },
+            {
+                label: 'Expenses (KES)',
+                data: chartData.map(d => d.expenses),
+                backgroundColor: '#ef4444',
+                borderColor: '#dc2626',
+                borderWidth: 1
+            }
+        ]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: { position: 'top' }
+        },
+        scales: {
+            y: {
+                beginAtZero: true,
+                ticks: {
+                    callback: function(value) {
+                        return 'KES ' + value.toLocaleString();
+                    }
+                }
+            }
+        }
+    }
+});
+
 // Auto-refresh every 60 seconds
-setInterval(function() {
+setTimeout(function() {
     location.reload();
 }, 60000);
 </script>

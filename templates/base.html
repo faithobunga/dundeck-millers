@@ -18,115 +18,288 @@
 </head>
 <body>
     <!-- Navigation Bar -->
-    {% if current_user.is_authenticated %}
-    <nav class="navbar navbar-expand-lg navbar-dark bg-primary navbar-fixed">
-        <div class="container-fluid">
-            <!-- Logo and Brand -->
-            <a class="navbar-brand d-flex align-items-center" href="{{ url_for('dashboard') }}">
-                <img src="{{ url_for('static', filename='images/logo.jpeg') }}" 
-                     alt="Dunedeck Millers" 
-                     height="40" 
-                     class="me-2"
-                     style="border-radius: 5px;">
-                <span class="fw-bold">DUNEDECK MILLERS</span>
-            </a>
-            
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto align-items-center">
-                    <!-- User Info -->
-                    <li class="nav-item">
-                        <span class="navbar-text text-white me-3">
-                            <i class="bi bi-person-circle"></i> 
-                            <strong>{{ current_user.name }}</strong>
-                            <span class="badge role-{{ current_user.role }} ms-2">{{ current_user.role|title }}</span>
-                        </span>
-                    </li>
-                    
-                    <!-- Role-specific Navigation -->
-                    {% if current_user.role == 'worker' %}
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('worker_dashboard') }}">
-                            <i class="bi bi-speedometer2"></i> Dashboard
-                        </a>
-                    </li>
-                    
-                    {% elif current_user.role == 'manager' %}
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('manager_dashboard') }}">
-                            <i class="bi bi-speedometer2"></i> Dashboard
-                        </a>
-                    </li>
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="reportsDropdown" role="button" data-bs-toggle="dropdown">
+{% if current_user.is_authenticated %}
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary navbar-fixed">
+    <div class="container-fluid">
+        <!-- Logo and Brand -->
+        <a class="navbar-brand d-flex align-items-center" href="{{ url_for('dashboard') }}">
+            <img src="{{ url_for('static', filename='images/logo.jpeg') }}" 
+                 alt="Dunedeck Millers" 
+                 height="40" 
+                 class="me-2"
+                 style="border-radius: 5px;">
+            <span class="fw-bold">DUNEDECK MILLERS</span>
+        </a>
+        
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav ms-auto align-items-center">
+                
+                <!-- WORKER NAVIGATION -->
+                {% if current_user.role == 'worker' %}
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('worker_dashboard') }}">
+                        <i class="bi bi-speedometer2"></i> Dashboard
+                    </a>
+                </li>
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                        <i class="bi bi-box-seam"></i> Operations
+                    </a>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="{{ url_for('requisitions_list') }}">
+                            <i class="bi bi-clipboard-check"></i> My Requisitions
+                        </a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('create_requisition') }}">
+                            <i class="bi bi-plus-circle"></i> New Requisition
+                        </a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="{{ url_for('invoices_list') }}">
+                            <i class="bi bi-receipt"></i> My Invoices
+                        </a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('create_invoice') }}">
+                            <i class="bi bi-plus-circle"></i> New Invoice
+                        </a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('customers_list') }}">
+                            <i class="bi bi-folder2-open"></i> Customer Folders
+                        </a></li>
+                    </ul>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('packaging_list') }}">
+                        <i class="bi bi-box"></i> Packaging
+                    </a>
+                </li>
+                
+                <!-- MANAGER NAVIGATION -->
+                {% elif current_user.role == 'manager' %}
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('manager_dashboard') }}">
+                        <i class="bi bi-speedometer2"></i> Dashboard
+                    </a>
+                </li>
+                
+                <!-- Manager: Sheets Dropdown -->
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                        <i class="bi bi-file-text"></i> Sheets
+                    </a>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="{{ url_for('manager_worker_mode') }}">
+                            <i class="bi bi-person-workspace"></i> Worker Mode
+                        </a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="{{ url_for('manager_dashboard') }}">
+                            <i class="bi bi-list-check"></i> All Sheets
+                        </a></li>
+                    </ul>
+                </li>
+                
+                <!-- Manager: Inventory Dropdown -->
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                        <i class="bi bi-box-seam"></i> Inventory
+                    </a>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="{{ url_for('suppliers_list') }}">
+                            <i class="bi bi-truck"></i> Suppliers
+                        </a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('suppliers_folders') }}">
+                            <i class="bi bi-folder2-open"></i> Supplier Folders
+                        </a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('create_supplier') }}">
+                            <i class="bi bi-plus-circle"></i> New Supplier
+                        </a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="{{ url_for('packaging_list') }}">
+                            <i class="bi bi-box"></i> Packaging
+                        </a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('create_packaging') }}">
+                            <i class="bi bi-plus-circle"></i> New Packaging
+                        </a></li>
+                    </ul>
+                </li>
+                
+                <!-- Manager: Operations Dropdown -->
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                        <i class="bi bi-gear"></i> Operations
+                    </a>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="{{ url_for('requisitions_list') }}">
+                            <i class="bi bi-clipboard-check"></i> Requisitions
+                        </a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('dispatches_list') }}">
+                            <i class="bi bi-truck"></i> Dispatches
+                        </a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('create_dispatch') }}">
+                            <i class="bi bi-plus-circle"></i> New Dispatch
+                        </a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="{{ url_for('invoices_list') }}">
+                            <i class="bi bi-receipt"></i> Invoices
+                        </a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('customers_list') }}">
+                            <i class="bi bi-folder2-open"></i> Customer Folders
+                        </a></li>
+                    </ul>
+                </li>
+                
+                <!-- Manager: Reports Dropdown -->
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                        <i class="bi bi-graph-up"></i> Reports
+                    </a>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="{{ url_for('daily_report') }}">
+                            <i class="bi bi-calendar-day"></i> Daily Report
+                        </a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('weekly_report') }}">
+                            <i class="bi bi-calendar-week"></i> Weekly Report
+                        </a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('monthly_report') }}">
+                            <i class="bi bi-calendar-month"></i> Monthly Report
+                        </a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="{{ url_for('product_movement_report') }}">
+                            <i class="bi bi-arrow-left-right"></i> Product Movement
+                        </a></li>
+                    </ul>
+                </li>
+                
+                <!-- DIRECTOR NAVIGATION -->
+                {% elif current_user.role == 'director' %}
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('director_dashboard') }}">
+                        <i class="bi bi-eye"></i> Dashboard
+                    </a>
+                </li>
+                
+                <!-- Director: View Dropdown -->
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                        <i class="bi bi-list-ul"></i> View
+                    </a>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="{{ url_for('suppliers_list') }}">
+                            <i class="bi bi-truck"></i> Suppliers
+                        </a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('packaging_list') }}">
+                            <i class="bi bi-box"></i> Packaging
+                        </a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('requisitions_list') }}">
+                            <i class="bi bi-clipboard-check"></i> Requisitions
+                        </a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('dispatches_list') }}">
+                            <i class="bi bi-truck"></i> Dispatches
+                        </a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('invoices_list') }}">
+                            <i class="bi bi-receipt"></i> Invoices
+                        </a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('customers_list') }}">
+                            <i class="bi bi-folder2-open"></i> Customer Folders
+                        </a></li>
+                    </ul>
+                </li>
+                
+                <!-- Director: Reports Dropdown -->
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                        <i class="bi bi-graph-up"></i> Reports
+                    </a>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="{{ url_for('daily_report') }}">
+                            <i class="bi bi-calendar-day"></i> Daily Report
+                        </a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('weekly_report') }}">
+                            <i class="bi bi-calendar-week"></i> Weekly Report
+                        </a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('monthly_report') }}">
+                            <i class="bi bi-calendar-month"></i> Monthly Report
+                        </a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="{{ url_for('product_movement_report') }}">
+                            <i class="bi bi-arrow-left-right"></i> Product Movement
+                        </a></li>
+                    </ul>
+                </li>
+                
+                <!-- ADMIN NAVIGATION -->
+                {% elif current_user.role == 'admin' %}
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('admin_dashboard') }}">
+                        <i class="bi bi-shield-lock"></i> Admin
+                    </a>
+                </li>
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                        <i class="bi bi-list-ul"></i> All Systems
+                    </a>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="{{ url_for('manager_dashboard') }}">
+                            <i class="bi bi-file-text"></i> All Sheets
+                        </a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('suppliers_list') }}">
+                            <i class="bi bi-truck"></i> Suppliers
+                        </a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('suppliers_folders') }}">
+                            <i class="bi bi-folder2-open"></i> Supplier Folders
+                        </a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('packaging_list') }}">
+                            <i class="bi bi-box"></i> Packaging
+                        </a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('requisitions_list') }}">
+                            <i class="bi bi-clipboard-check"></i> Requisitions
+                        </a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('dispatches_list') }}">
+                            <i class="bi bi-truck"></i> Dispatches
+                        </a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('invoices_list') }}">
+                            <i class="bi bi-receipt"></i> Invoices
+                        </a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('customers_list') }}">
+                            <i class="bi bi-folder2-open"></i> Customer Folders
+                        </a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="{{ url_for('daily_report') }}">
                             <i class="bi bi-graph-up"></i> Reports
-                        </a>
-                        <ul class="dropdown-menu">
-                            <li><a class="dropdown-item" href="{{ url_for('daily_report') }}">
-                                <i class="bi bi-calendar-day"></i> Daily Report
-                            </a></li>
-                            <li><a class="dropdown-item" href="{{ url_for('weekly_report') }}">
-                                <i class="bi bi-calendar-week"></i> Weekly Report
-                            </a></li>
-                            <li><a class="dropdown-item" href="{{ url_for('monthly_report') }}">
-                                <i class="bi bi-calendar-month"></i> Monthly Report
-                            </a></li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="{{ url_for('product_movement_report') }}">
-                                <i class="bi bi-arrow-left-right"></i> Product Movement
-                            </a></li>
-                        </ul>
-                    </li>
-                    
-                    {% elif current_user.role == 'director' %}
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('director_dashboard') }}">
-                            <i class="bi bi-eye"></i> Dashboard
-                        </a>
-                    </li>
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="reportsDropdown" role="button" data-bs-toggle="dropdown">
-                            <i class="bi bi-graph-up"></i> Reports
-                        </a>
-                        <ul class="dropdown-menu">
-                            <li><a class="dropdown-item" href="{{ url_for('daily_report') }}">
-                                <i class="bi bi-calendar-day"></i> Daily Report
-                            </a></li>
-                            <li><a class="dropdown-item" href="{{ url_for('weekly_report') }}">
-                                <i class="bi bi-calendar-week"></i> Weekly Report
-                            </a></li>
-                            <li><a class="dropdown-item" href="{{ url_for('monthly_report') }}">
-                                <i class="bi bi-calendar-month"></i> Monthly Report
-                            </a></li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="{{ url_for('product_movement_report') }}">
-                                <i class="bi bi-arrow-left-right"></i> Product Movement
-                            </a></li>
-                        </ul>
-                    </li>
-                    
-                    {% elif current_user.role == 'admin' %}
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('admin_dashboard') }}">
-                            <i class="bi bi-shield-lock"></i> Admin
-                        </a>
-                    </li>
-                    {% endif %}
-                    
-                    <!-- Logout Button -->
-                    <li class="nav-item">
-                        <a class="nav-link btn btn-outline-light btn-sm ms-2" href="{{ url_for('logout') }}">
+                        </a></li>
+                    </ul>
+                </li>
+                {% endif %}
+                
+                <!-- User Info (All Roles) -->
+                <li class="nav-item">
+                    <span class="navbar-text text-white me-3">
+                        <i class="bi bi-person-circle"></i> 
+                        <strong>{{ current_user.name }}</strong>
+                        <span class="badge role-{{ current_user.role }} ms-2">{{ current_user.role|title }}</span>
+                    </span>
+                </li>
+                
+                <!-- User Dropdown -->
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                        <i class="bi bi-gear"></i>
+                    </a>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        <li><a class="dropdown-item" href="{{ url_for('change_password') }}">
+                            <i class="bi bi-key"></i> Change Password
+                        </a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item text-danger" href="{{ url_for('logout') }}" onclick="return confirm('Are you sure you want to logout?')">
                             <i class="bi bi-box-arrow-right"></i> Logout
-                        </a>
-                    </li>
-                </ul>
-            </div>
+                        </a></li>
+                    </ul>
+                </li>
+            </ul>
         </div>
-    </nav>
-    {% endif %}
+    </div>
+</nav>
+{% endif %}
     
     <!-- Flash Messages -->
     <div class="container mt-3">
@@ -169,7 +342,7 @@
                 </div>
                 <div class="col-md-4">
                     <p class="mb-1" style="color: var(--dm-dark);">
-                        <strong>Dunedeck Millers</strong> - Daily Weight Record System
+                        <strong>Dunedeck Millers</strong> - Warehouse Management System
                     </p>
                     <p class="mb-0 text-muted small">
                         <i class="bi bi-calendar"></i> <span id="currentDate"></span>
@@ -223,16 +396,6 @@
                     const bsAlert = new bootstrap.Alert(alert);
                     bsAlert.close();
                 }, 5000);
-            });
-        });
-        
-        // Confirm before logout
-        const logoutLinks = document.querySelectorAll('a[href="{{ url_for("logout") }}"]');
-        logoutLinks.forEach(function(link) {
-            link.addEventListener('click', function(e) {
-                if (!confirm('Are you sure you want to logout?')) {
-                    e.preventDefault();
-                }
             });
         });
     </script>

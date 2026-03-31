@@ -1,0 +1,362 @@
+{% extends "base.html" %}
+
+{% block title %}Packaging Records - Dunedeck Millers{% endblock %}
+
+{% block content %}
+<div class="row mb-4 no-print">
+    <div class="col-md-8">
+        <h2 class="fw-bold"><i class="bi bi-box"></i> Packaging Records</h2>
+        <p class="text-muted mb-0">Track all packaging operations and processed inventory</p>
+    </div>
+    <div class="col-md-4 text-md-end">
+        {% if current_user.role in ['manager', 'admin'] %}
+        <a href="{{ url_for('create_packaging') }}" class="btn btn-primary">
+            <i class="bi bi-plus-circle"></i> New Packaging Record
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<!-- DATE FILTER SECTION -->
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-light">
+        <h5 class="mb-0"><i class="bi bi-calendar-range"></i> Date Filter</h5>
+    </div>
+    <div class="card-body">
+        <!-- Quick Filters -->
+        <div class="mb-3">
+            <label class="form-label fw-semibold">Quick Filters:</label>
+            <div class="btn-group" role="group">
+                <a href="{{ url_for('packaging_list', filter='today') }}" 
+                   class="btn btn-sm btn-outline-primary {% if filter_type == 'today' %}active{% endif %}">
+                    <i class="bi bi-calendar-day"></i> Today
+                </a>
+                <a href="{{ url_for('packaging_list', filter='week') }}" 
+                   class="btn btn-sm btn-outline-primary {% if filter_type == 'week' %}active{% endif %}">
+                    <i class="bi bi-calendar-week"></i> This Week
+                </a>
+                <a href="{{ url_for('packaging_list', filter='month') }}" 
+                   class="btn btn-sm btn-outline-primary {% if filter_type == 'month' %}active{% endif %}">
+                    <i class="bi bi-calendar-month"></i> This Month
+                </a>
+                <a href="{{ url_for('packaging_list', filter='all') }}" 
+                   class="btn btn-sm btn-outline-secondary {% if filter_type == 'all' %}active{% endif %}">
+                    <i class="bi bi-calendar3"></i> All Time
+                </a>
+            </div>
+        </div>
+        
+        <!-- Custom Date Range -->
+        <div class="row">
+            <div class="col-md-12">
+                <label class="form-label fw-semibold">Custom Date Range:</label>
+            </div>
+        </div>
+        <form method="GET" action="{{ url_for('packaging_list') }}" id="customRangeForm" class="row g-3 align-items-end">
+            <input type="hidden" name="filter" value="custom">
+            <div class="col-md-4">
+                <label for="start_date" class="form-label">From Date</label>
+                <input type="date" class="form-control" id="start_date" name="start_date" 
+                       value="{% if filter_type == 'custom' and start_date %}{{ start_date.isoformat() }}{% endif %}">
+            </div>
+            <div class="col-md-4">
+                <label for="end_date" class="form-label">To Date</label>
+                <input type="date" class="form-control" id="end_date" name="end_date" 
+                       value="{% if filter_type == 'custom' and end_date %}{{ end_date.isoformat() }}{% endif %}">
+            </div>
+            <div class="col-md-4">
+                <button type="submit" class="btn btn-success w-100">
+                    <i class="bi bi-funnel"></i> Apply Custom Range
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Date Range Display -->
+{% if filter_type != 'all' %}
+<div class="alert alert-info mb-4">
+    <i class="bi bi-info-circle"></i>
+    <strong>Showing records from 
+        {% if filter_type == 'today' %}
+            Today ({{ start_date.strftime('%B %d, %Y') }})
+        {% elif filter_type == 'week' %}
+            {{ start_date.strftime('%b %d') }} - {{ end_date.strftime('%b %d, %Y') }} (This Week)
+        {% elif filter_type == 'month' %}
+            {{ start_date.strftime('%B %Y') }} (This Month)
+        {% elif filter_type == 'custom' %}
+            {{ start_date.strftime('%b %d, %Y') }} to {{ end_date.strftime('%b %d, %Y') }}
+        {% endif %}
+    </strong>
+    • {{ records|length }} record(s) found
+</div>
+{% else %}
+<div class="alert alert-secondary mb-4">
+    <i class="bi bi-calendar3"></i>
+    <strong>Showing all records</strong> • {{ records|length }} record(s) total
+</div>
+{% endif %}
+
+<!-- Summary Cards -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card bg-success text-white shadow-sm">
+            <div class="card-body text-center">
+                <h6 class="text-white-50">MAIZE FLOUR 1KG</h6>
+                <h2 class="mb-0">{{ "{:,.0f}".format(summary.maize_flour_1kg) }}</h2>
+                <small>units ({{ "{:,.1f}".format(summary.maize_flour_1kg / 24) }} bales)</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-success text-white shadow-sm">
+            <div class="card-body text-center">
+                <h6 class="text-white-50">MAIZE FLOUR 2KG</h6>
+                <h2 class="mb-0">{{ "{:,.0f}".format(summary.maize_flour_2kg) }}</h2>
+                <small>units ({{ "{:,.1f}".format(summary.maize_flour_2kg / 12) }} bales)</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-warning text-white shadow-sm">
+            <div class="card-body text-center">
+                <h6 class="text-white-50">MAIZE GERM</h6>
+                <h2 class="mb-0">{{ "{:,.0f}".format(summary.maize_germ) }}</h2>
+                <small>bags ({{ "{:,.0f}".format(summary.maize_germ * 50) }} kg)</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-info text-white shadow-sm">
+            <div class="card-body text-center">
+                <h6 class="text-white-50">ANIMAL FEEDS</h6>
+                <h2 class="mb-0">{{ "{:,.0f}".format(summary.animal_feeds) }}</h2>
+                <small>bags ({{ "{:,.0f}".format(summary.animal_feeds * 50) }} kg)</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Combined Totals -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card border-success shadow-sm">
+            <div class="card-body">
+                <h5 class="mb-3"><i class="bi bi-calculator"></i> Maize Flour Combined</h5>
+                <div class="row">
+                    <div class="col-4">
+                        <p class="mb-1 text-muted">Total Units:</p>
+                        <h3 class="mb-0">{{ "{:,.0f}".format(summary.maize_flour_1kg + summary.maize_flour_2kg) }}</h3>
+                    </div>
+                    <div class="col-4">
+                        <p class="mb-1 text-muted">Total Bales:</p>
+                        <h3 class="mb-0">{{ "{:,.1f}".format((summary.maize_flour_1kg / 24) + (summary.maize_flour_2kg / 12)) }}</h3>
+                    </div>
+                    <div class="col-4">
+                        <p class="mb-1 text-muted">Total Weight:</p>
+                        <h3 class="mb-0">{{ "{:,.0f}".format(summary.maize_flour_1kg + (summary.maize_flour_2kg * 2)) }} kg</h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card border-info shadow-sm">
+            <div class="card-body">
+                <h5 class="mb-3"><i class="bi bi-box-seam"></i> All Products Total</h5>
+                <div class="row">
+                    <div class="col-6">
+                        <p class="mb-1 text-muted">Total Bags/Units:</p>
+                        <h3 class="mb-0">
+                            {{ "{:,.0f}".format(
+                                summary.maize_flour_1kg + 
+                                summary.maize_flour_2kg + 
+                                summary.maize_germ + 
+                                summary.animal_feeds
+                            ) }}
+                        </h3>
+                    </div>
+                    <div class="col-6">
+                        <p class="mb-1 text-muted">Grand Total Weight:</p>
+                        <h3 class="mb-0">
+                            {{ "{:,.0f}".format(
+                                summary.maize_flour_1kg + 
+                                (summary.maize_flour_2kg * 2) + 
+                                (summary.maize_germ * 50) + 
+                                (summary.animal_feeds * 50)
+                            ) }} kg
+                        </h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Packaging Records Table -->
+{% if records %}
+<div class="card shadow-sm">
+    <div class="card-header bg-light">
+        <div class="d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="bi bi-list-ul"></i> Packaging History ({{ records|length }} records)</h5>
+            {% if filter_type != 'all' %}
+            <small class="text-muted">
+                Filtered Period: 
+                {% if filter_type == 'custom' %}
+                    {{ start_date.strftime('%b %d, %Y') }} - {{ end_date.strftime('%b %d, %Y') }}
+                {% elif filter_type == 'today' %}
+                    {{ start_date.strftime('%B %d, %Y') }}
+                {% elif filter_type == 'week' %}
+                    Week of {{ start_date.strftime('%b %d, %Y') }}
+                {% elif filter_type == 'month' %}
+                    {{ start_date.strftime('%B %Y') }}
+                {% endif %}
+            </small>
+            {% endif %}
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Date</th>
+                        <th>Batch No</th>
+                        <th>Product Type</th>
+                        <th>Bales/Bags</th>
+                        <th>Units</th>
+                        <th>Weight (kg)</th>
+                        <th>Packaged By</th>
+                        <th>Created By</th>
+                        {% if current_user.role in ['manager', 'admin'] %}
+                        <th>Actions</th>
+                        {% endif %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for record in records %}
+                    <tr>
+                        <td>
+                            <strong>{{ record.date_packaged.strftime('%Y-%m-%d') }}</strong>
+                            <br><small class="text-muted">{{ record.date_packaged.strftime('%A') }}</small>
+                        </td>
+                        <td class="fw-semibold">{{ record.batch_number }}</td>
+                        <td>
+                            {% if record.product_type == 'maize_flour_1kg' %}
+                            <span class="badge bg-success">Maize Flour 1KG</span>
+                            {% elif record.product_type == 'maize_flour_2kg' %}
+                            <span class="badge bg-success">Maize Flour 2KG</span>
+                            {% elif record.product_type == 'maize_germ' %}
+                            <span class="badge bg-warning">Maize Germ</span>
+                            {% elif record.product_type == 'animal_feeds' %}
+                            <span class="badge bg-info">Animal Feeds</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if 'maize_flour' in record.product_type %}
+                                {% if record.product_type == 'maize_flour_1kg' %}
+                                <strong>{{ "{:,.1f}".format(record.quantity / 24) }}</strong> bales
+                                <br><small class="text-muted">(24 units/bale)</small>
+                                {% else %}
+                                <strong>{{ "{:,.1f}".format(record.quantity / 12) }}</strong> bales
+                                <br><small class="text-muted">(12 units/bale)</small>
+                                {% endif %}
+                            {% elif record.product_type in ['maize_germ', 'animal_feeds'] %}
+                                <strong>{{ "{:,.1f}".format(record.quantity) }}</strong> bags
+                                <br><small class="text-muted">(50kg/bag)</small>
+                            {% else %}
+                            —
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if 'maize_flour' in record.product_type %}
+                            <strong>{{ "{:,.0f}".format(record.quantity) }}</strong> units
+                            {% else %}
+                            —
+                            {% endif %}
+                        </td>
+                        <td class="fw-bold">{{ "{:,.2f}".format(record.total_weight_kg) }} kg</td>
+                        <td>{{ record.packaged_by.name }}</td>
+                        <td>
+                            <small class="text-muted">
+                                {{ record.created_by.name }}
+                                <br>{{ record.created_at.strftime('%H:%M') }}
+                            </small>
+                        </td>
+                        {% if current_user.role in ['manager', 'admin'] %}
+                        <td>
+                            <button class="btn btn-sm btn-danger" onclick="deleteRecord({{ record.id }}, '{{ record.batch_number }}')">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </td>
+                        {% endif %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="card shadow-sm">
+    <div class="card-body text-center py-5">
+        <i class="bi bi-box" style="font-size: 4rem; color: #dee2e6;"></i>
+        <h4 class="mt-3 text-muted">No Packaging Records Found</h4>
+        <p class="text-muted">
+            {% if filter_type != 'all' %}
+            No records found for the selected date range. Try changing the filter or selecting "All Time".
+            {% else %}
+            Start by creating your first packaging record.
+            {% endif %}
+        </p>
+        {% if current_user.role in ['manager', 'admin'] %}
+        <a href="{{ url_for('create_packaging') }}" class="btn btn-primary mt-3">
+            <i class="bi bi-plus-circle"></i> Create Packaging Record
+        </a>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function deleteRecord(recordId, batchNumber) {
+    if (confirm(`Are you sure you want to delete packaging record "${batchNumber}"?\n\nThis will:\n- Remove this record permanently\n- Update processed inventory\n- Update raw inventory\n\nThis action cannot be undone.`)) {
+        fetch(`/packaging/${recordId}/delete`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Error deleting record: ' + data.message);
+            }
+        })
+        .catch(error => {
+            alert('Error deleting record');
+            console.error('Error:', error);
+        });
+    }
+}
+
+// Set max date for date pickers to today
+document.addEventListener('DOMContentLoaded', function() {
+    const today = new Date().toISOString().split('T')[0];
+    const startDateInput = document.getElementById('start_date');
+    const endDateInput = document.getElementById('end_date');
+    
+    if (startDateInput) {
+        startDateInput.setAttribute('max', today);
+    }
+    if (endDateInput) {
+        endDateInput.setAttribute('max', today);
+    }
+});
+</script>
+{% endblock %}

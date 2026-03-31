@@ -2,251 +2,401 @@
 
 {% block title %}Worker Dashboard - Dunedeck Millers{% endblock %}
 
+{% block extra_css %}
+<style>
+    .greeting-banner {
+        background: linear-gradient(135deg, #065f46 0%, #10b981 100%);
+        color: white;
+        padding: 30px;
+        border-radius: 10px;
+        margin-bottom: 20px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    
+    .kenya-time {
+        font-size: 2.5rem;
+        font-weight: bold;
+        font-family: 'Courier New', monospace;
+    }
+    
+    .clock-card {
+        border: 3px solid #10b981;
+        border-radius: 10px;
+        padding: 30px;
+        text-align: center;
+        margin-bottom: 30px;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    
+    .clock-card.clocked-in {
+        background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+        border-color: #10b981;
+    }
+    
+    .clock-card.clocked-out {
+        background: #f9fafb;
+        border-color: #d1d5db;
+    }
+    
+    .locked-content {
+        opacity: 0.4;
+        pointer-events: none;
+        position: relative;
+    }
+    
+    .locked-overlay {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        background: #fee2e2;
+        color: #991b1b;
+        padding: 5px 10px;
+        border-radius: 5px;
+        font-size: 0.85rem;
+        font-weight: bold;
+    }
+    
+    .stat-card {
+        border-radius: 8px;
+        padding: 20px;
+        text-align: center;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .quick-action-btn {
+        width: 100%;
+        padding: 15px;
+        margin-bottom: 10px;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
-<!-- Inventory Alerts -->
-{% if alerts %}
-<div class="row mb-3">
-    <div class="col-12">
-        {% for alert in alerts %}
-        <div class="alert alert-{{ 'danger' if alert.level == 'critical' else 'warning' }} alert-dismissible fade show">
-            <i class="bi bi-exclamation-triangle-fill"></i>
-            <strong>{{ alert.product }}:</strong> {{ alert.message }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+
+<!-- GREETING BANNER -->
+<div class="greeting-banner">
+    <div class="row align-items-center">
+        <div class="col-md-8">
+            <h1 class="mb-2">Good {{ now().strftime('%p')|replace('AM', 'Morning')|replace('PM', 'Afternoon') }}, {{ current_user.name }}!</h1>
+            <p class="mb-0 opacity-75" style="font-size: 1.1rem;">
+                <i class="bi bi-calendar3"></i> 
+                {{ today.strftime('%A, %B %d, %Y') }}
+            </p>
         </div>
-        {% endfor %}
+        <div class="col-md-4 text-end">
+            <small class="opacity-75">KENYA WAREHOUSE TIME</small>
+            <div class="kenya-time" id="kenyaTime">--:--:--</div>
+        </div>
     </div>
+</div>
+
+<!-- CRITICAL ALERT (Only when stock is zero) -->
+{% if critical_alert %}
+<div class="alert alert-danger">
+    <i class="bi bi-exclamation-triangle-fill"></i>
+    <strong>{{ critical_alert }}</strong>
 </div>
 {% endif %}
 
-<!-- Header -->
-<div class="row mb-4">
-    <div class="col-md-8">
-        <h2 class="fw-bold">
-            <i class="bi bi-speedometer2"></i> Worker Dashboard
-            <span class="live-indicator">LIVE</span>
-        </h2>
-        <p class="text-muted mb-0">
-            {{ current_user.name }} • Today: {{ today.strftime('%B %d, %Y') }}
-        </p>
-    </div>
-    <div class="col-md-4 text-md-end">
-        <button class="btn btn-primary btn-lg" data-bs-toggle="modal" data-bs-target="#createSheetModal">
-            <i class="bi bi-plus-circle"></i> New Sheet
+<!-- CLOCK-IN CARD -->
+<div class="clock-card {% if is_clocked_in %}clocked-in{% else %}clocked-out{% endif %}">
+    {% if not is_clocked_in %}
+        <i class="bi bi-clock-history" style="font-size: 4rem; color: #6b7280;"></i>
+        <h2 class="mt-3 mb-3" style="color: #374151;">You Need to Clock In to Start Your Shift</h2>
+        <p class="text-muted mb-4">Connect to warehouse WiFi and clock in to access your work dashboard</p>
+        <button class="btn btn-success btn-lg px-5" onclick="clockIn()">
+            <i class="bi bi-check-circle"></i> Clock In Now
         </button>
-    </div>
-</div>
-
-<!-- Sheet Type Tabs -->
-<ul class="nav nav-tabs mb-4" role="tablist">
-    <li class="nav-item">
-        <a class="nav-link {% if sheet_filter == 'daily' %}active{% endif %}" 
-           href="{{ url_for('worker_dashboard', type='daily') }}">
-            <i class="bi bi-clipboard-data"></i> Daily Weights
-            <span class="badge bg-secondary ms-1">{{ daily_count }}</span>
-        </a>
-    </li>
-    <li class="nav-item">
-        <a class="nav-link {% if sheet_filter == 'received' %}active{% endif %}" 
-           href="{{ url_for('worker_dashboard', type='received') }}">
-            <i class="bi bi-box-arrow-in-down"></i> Received Batch
-            <span class="badge bg-success ms-1">{{ received_count }}</span>
-        </a>
-    </li>
-    <li class="nav-item">
-        <a class="nav-link {% if sheet_filter == 'outstock' %}active{% endif %}" 
-           href="{{ url_for('worker_dashboard', type='outstock') }}">
-            <i class="bi bi-box-arrow-up"></i> Out Stock
-            <span class="badge bg-danger ms-1">{{ outstock_count }}</span>
-            {% if pending_auth > 0 %}
-            <span class="badge bg-warning ms-1">{{ pending_auth }} Pending</span>
-            {% endif %}
-        </a>
-    </li>
-    <li class="nav-item">
-        <a class="nav-link {% if sheet_filter == 'lost' %}active{% endif %}" 
-           href="{{ url_for('worker_dashboard', type='lost') }}">
-            <i class="bi bi-exclamation-triangle"></i> Lost/Damaged
-            <span class="badge bg-warning ms-1">{{ lost_count }}</span>
-        </a>
-    </li>
-</ul>
-
-<!-- Quick Stats -->
-<div class="row mb-4">
-    <div class="col-md-3">
-        <div class="card border-0 shadow-sm">
-            <div class="card-body">
-                <div class="d-flex align-items-center">
-                    <div class="stat-icon green">
-                        <i class="bi bi-file-text"></i>
-                    </div>
-                    <div class="ms-3">
-                        <h6 class="text-muted mb-1">Active Sheets</h6>
-                        <h3 class="mb-0">{{ sheet_data|selectattr('sheet.status', 'equalto', 'In Progress')|list|length }}</h3>
-                    </div>
+        <div id="clockError" class="alert alert-danger mt-3" style="display: none;"></div>
+    {% else %}
+        <div class="row align-items-center">
+            <div class="col-md-4">
+                <span class="badge bg-success" style="font-size: 1.2rem; padding: 10px 20px;">
+                    <i class="bi bi-check-circle-fill"></i> CLOCKED IN
+                </span>
+                <div class="mt-3">
+                    <strong>Clock In Time:</strong><br>
+                    <span style="font-size: 1.5rem;">{{ clock_in_time.strftime('%I:%M %p') }}</span>
                 </div>
             </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card border-0 shadow-sm">
-            <div class="card-body">
-                <div class="d-flex align-items-center">
-                    <div class="stat-icon green">
-                        <i class="bi bi-check-circle"></i>
-                    </div>
-                    <div class="ms-3">
-                        <h6 class="text-muted mb-1">Completed</h6>
-                        <h3 class="mb-0">{{ sheet_data|selectattr('sheet.status', 'equalto', 'Closed')|list|length }}</h3>
-                    </div>
+            <div class="col-md-4">
+                <strong class="text-muted">Hours Worked Today</strong>
+                <div style="font-size: 3rem; font-weight: bold; color: #10b981;" id="hoursCounter">
+                    {{ "%.2f"|format(hours_worked) }}
                 </div>
+                <small class="text-muted">hours</small>
+            </div>
+            <div class="col-md-4">
+                <button class="btn btn-danger btn-lg px-5" onclick="clockOut()">
+                    <i class="bi bi-x-circle"></i> Clock Out
+                </button>
             </div>
         </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card border-0 shadow-sm">
-            <div class="card-body">
-                <div class="d-flex align-items-center">
-                    <div class="stat-icon green">
-                        <i class="bi bi-boxes"></i>
-                    </div>
-                    <div class="ms-3">
-                        <h6 class="text-muted mb-1">Total Cages</h6>
-                        <h3 class="mb-0">{{ total_all_cages }}</h3>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card border-0 shadow-sm">
-            <div class="card-body">
-                <div class="d-flex align-items-center">
-                    <div class="stat-icon red">
-                        <i class="bi bi-speedometer"></i>
-                    </div>
-                    <div class="ms-3">
-                        <h6 class="text-muted mb-1">Total Weight</h6>
-                        <h3 class="mb-0">{{ "%.0f"|format(total_all_weight) }}<small class="text-muted"> kg</small></h3>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Sheets Grid -->
-{% if sheet_data %}
-<h5 class="mb-3">
-    <i class="bi bi-folder2-open"></i> 
-    {% if sheet_filter == 'daily' %}Daily Weight Sheets
-    {% elif sheet_filter == 'received' %}Received Batch Sheets
-    {% elif sheet_filter == 'outstock' %}Out Stock Sheets
-    {% elif sheet_filter == 'lost' %}Lost/Damaged Sheets
     {% endif %}
-    <small class="text-muted">({{ sheet_data|length }})</small>
-</h5>
-<div class="row">
-    {% for data in sheet_data %}
-    <div class="col-md-6 col-lg-4 mb-4">
-        <div class="card sheet-card product-{{ data.sheet.product_type.lower().replace(' ', '-') }}" 
-             onclick="window.location='{{ url_for('view_sheet', sheet_id=data.sheet.id) }}'">
-            <div class="card-header bg-light">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <h5 class="mb-0">
-                            <i class="bi bi-box-seam"></i> {{ data.sheet.product_type }}
-                        </h5>
-                        <small class="text-muted">
-                            <i class="bi bi-calendar3"></i> {{ data.sheet.sheet_date.strftime('%b %d, %Y') }}
-                        </small>
-                    </div>
-                    <div>
-                        {% if data.sheet.status == 'In Progress' %}
-                        <span class="badge badge-in-progress">
-                            <i class="bi bi-clock-history"></i> In Progress
-                        </span>
-                        {% else %}
-                        <span class="badge badge-closed">
-                            <i class="bi bi-lock"></i> Closed
-                        </span>
-                        {% endif %}
-                        
-                        {% if data.sheet.sheet_type == 'outstock' %}
-                            {% if data.sheet.authorization_status == 'pending' %}
-                            <span class="badge bg-warning mt-1">
-                                <i class="bi bi-clock"></i> Pending Auth
-                            </span>
-                            {% elif data.sheet.authorization_status == 'authorized' %}
-                            <span class="badge bg-success mt-1">
-                                <i class="bi bi-check"></i> Authorized
-                            </span>
-                            {% elif data.sheet.authorization_status == 'rejected' %}
-                            <span class="badge bg-danger mt-1">
-                                <i class="bi bi-x"></i> Rejected
-                            </span>
-                            {% endif %}
-                        {% endif %}
-                    </div>
-                </div>
+</div>
+
+<!-- EVERYTHING BELOW IS LOCKED IF NOT CLOCKED IN -->
+<div {% if not is_clocked_in %}class="locked-content"{% endif %}>
+    {% if not is_clocked_in %}
+    <div class="locked-overlay">
+        <i class="bi bi-lock-fill"></i> Clock in to unlock
+    </div>
+    {% endif %}
+
+    <!-- PERSONAL STATS (Today Only) -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="stat-card bg-primary text-white">
+                <h6 class="text-white-50">Daily Weight Sheets</h6>
+                <h2 class="mb-0">{{ daily_count }}</h2>
+                <small>created today</small>
             </div>
-            <div class="card-body">
-                <div class="row text-center mb-3">
-                    <div class="col-4">
-                        <div class="stat-value">
-                            <h3 class="mb-0" style="color: var(--dm-green);">{{ data.total_cages }}</h3>
-                            <small class="text-muted">Cages</small>
-                        </div>
-                    </div>
-                    <div class="col-4">
-                        <div class="stat-value">
-                            <h3 class="mb-0" style="color: var(--dm-green);">{{ "%.1f"|format(data.total_weight) }}</h3>
-                            <small class="text-muted">KG</small>
-                        </div>
-                    </div>
-                    <div class="col-4">
-                        <div class="stat-value">
-                            <h3 class="mb-0" style="color: var(--dm-red);">{{ "%.2f"|format(data.total_bags) }}</h3>
-                            <small class="text-muted">Bags ({{ data.bag_weight }}kg)</small>
-                        </div>
-                    </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-card bg-success text-white">
+                <h6 class="text-white-50">Received Batch Sheets</h6>
+                <h2 class="mb-0">{{ received_count }}</h2>
+                <small>created today</small>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-card bg-danger text-white">
+                <h6 class="text-white-50">Out Stock Sheets</h6>
+                <h2 class="mb-0">{{ outstock_count }}</h2>
+                <small>created today</small>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-card bg-info text-white">
+                <h6 class="text-white-50">Invoices</h6>
+                <h2 class="mb-0">{{ invoice_count }}</h2>
+                <small>created today</small>
+            </div>
+        </div>
+    </div>
+
+    <!-- QUICK ACTIONS -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-light">
+            <h5 class="mb-0"><i class="bi bi-lightning-charge"></i> Quick Actions</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-4">
+                    <button class="btn btn-outline-primary quick-action-btn" data-bs-toggle="modal" data-bs-target="#createSheetModal">
+                        <i class="bi bi-file-text"></i> Create Daily Weight Sheet
+                    </button>
                 </div>
-                <div class="d-flex justify-content-between align-items-center">
-                    <small class="text-muted">
-                        <i class="bi bi-clock"></i> {{ data.sheet.created_at.strftime('%I:%M %p') }}
-                    </small>
-                    {% if data.sheet.status == 'In Progress' %}
-                    <span class="badge bg-success">
-                        <i class="bi bi-pencil"></i> Editable
-                    </span>
-                    {% else %}
-                    <span class="badge bg-secondary">
-                        <i class="bi bi-eye"></i> View Only
-                    </span>
-                    {% endif %}
+                <div class="col-md-4">
+                    <button class="btn btn-outline-success quick-action-btn" data-bs-toggle="modal" data-bs-target="#createSheetModal">
+                        <i class="bi bi-box-arrow-in-down"></i> Create Received Batch Sheet
+                    </button>
+                </div>
+                <div class="col-md-4">
+                    <button class="btn btn-outline-danger quick-action-btn" data-bs-toggle="modal" data-bs-target="#createSheetModal">
+                        <i class="bi bi-box-arrow-up"></i> Create Out Stock Sheet
+                    </button>
+                </div>
+                <div class="col-md-4">
+                    <a href="{{ url_for('create_invoice') }}" class="btn btn-outline-warning quick-action-btn">
+                        <i class="bi bi-receipt"></i> Create Invoice
+                    </a>
+                </div>
+                <div class="col-md-4">
+                    <a href="{{ url_for('create_requisition') }}" class="btn btn-outline-info quick-action-btn">
+                        <i class="bi bi-clipboard-check"></i> Create Internal Requisition
+                    </a>
                 </div>
             </div>
         </div>
     </div>
-    {% endfor %}
+
+    <!-- TODAY'S SHEETS -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-light">
+            <h5 class="mb-0"><i class="bi bi-folder2-open"></i> My Sheets Created Today</h5>
+        </div>
+        <div class="card-body">
+            {% if sheet_data %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Product Type</th>
+                            <th>Sheet Type</th>
+                            <th>Status</th>
+                            <th>Cages</th>
+                            <th>Weight (KG)</th>
+                            <th>Bags</th>
+                            <th>Authorization</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for data in sheet_data %}
+                        <tr>
+                            <td><strong>{{ data.sheet.product_type }}</strong></td>
+                            <td>
+                                <span class="badge bg-secondary">{{ data.sheet.sheet_type|upper }}</span>
+                            </td>
+                            <td>
+                                {% if data.sheet.status == 'In Progress' %}
+                                <span class="badge bg-warning">In Progress</span>
+                                {% else %}
+                                <span class="badge bg-success">Closed</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ data.total_cages }}</td>
+                            <td>{{ "%.1f"|format(data.total_weight) }}</td>
+                            <td>{{ "%.2f"|format(data.total_bags) }}</td>
+                            <td>
+                                {% if data.sheet.sheet_type == 'outstock' %}
+                                    {% if data.sheet.authorization_status == 'authorized' %}
+                                    <span class="badge bg-success">Authorized</span>
+                                    {% elif data.sheet.authorization_status == 'rejected' %}
+                                    <span class="badge bg-danger">Rejected</span>
+                                    {% else %}
+                                    <span class="badge bg-warning">Pending</span>
+                                    {% endif %}
+                                {% else %}
+                                —
+                                {% endif %}
+                            </td>
+                            <td>
+                                <a href="{{ url_for('view_sheet', sheet_id=data.sheet.id) }}" class="btn btn-sm btn-primary">
+                                    <i class="bi bi-eye"></i> View
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-center text-muted py-4">No sheets created today. Use Quick Actions above to create your first sheet!</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- MY INVOICES (ALL TIME) -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-light">
+            <h5 class="mb-0"><i class="bi bi-receipt"></i> My Invoices (All Time)</h5>
+        </div>
+        <div class="card-body">
+            {% if all_invoices %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Invoice #</th>
+                            <th>Customer</th>
+                            <th>Date</th>
+                            <th>Grand Total</th>
+                            <th>Payment Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for invoice in all_invoices[:10] %}
+                        <tr>
+                            <td><strong>{{ invoice.invoice_number }}</strong></td>
+                            <td>{{ invoice.customer_name }}</td>
+                            <td>{{ invoice.invoice_date.strftime('%b %d, %Y') }}</td>
+                            <td class="fw-bold">KES {{ "{:,.2f}".format(invoice.grand_total) }}</td>
+                            <td>
+                                {% if invoice.payment_status == 'paid' %}
+                                <span class="badge bg-success">Paid</span>
+                                {% elif invoice.payment_status == 'partial' %}
+                                <span class="badge bg-warning">Partial</span>
+                                {% else %}
+                                <span class="badge bg-danger">Unpaid</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <a href="{{ url_for('view_invoice', invoice_id=invoice.id) }}" class="btn btn-sm btn-primary">
+                                    <i class="bi bi-eye"></i> View
+                                </a>
+                                <a href="{{ url_for('download_invoice_pdf', invoice_id=invoice.id) }}" class="btn btn-sm btn-danger">
+                                    <i class="bi bi-file-pdf"></i> PDF
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-center text-muted py-4">No invoices yet. Create your first invoice using Quick Actions!</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- MY REQUISITIONS -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-light">
+            <h5 class="mb-0"><i class="bi bi-clipboard-check"></i> My Internal Requisitions</h5>
+        </div>
+        <div class="card-body">
+            {% if requisitions %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Requisition #</th>
+                            <th>Date</th>
+                            <th>Purpose</th>
+                            <th>Items</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for req in requisitions[:10] %}
+                        <tr>
+                            <td><strong>{{ req.requisition_number }}</strong></td>
+                            <td>{{ req.date_requested.strftime('%b %d, %Y') }}</td>
+                            <td>{{ req.purpose }}</td>
+                            <td>{{ req.total_items }} items</td>
+                            <td>
+                                {% if req.status == 'approved' %}
+                                <span class="badge bg-success">Approved</span>
+                                {% elif req.status == 'rejected' %}
+                                <span class="badge bg-danger">Rejected</span>
+                                {% else %}
+                                <span class="badge bg-warning">Pending</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <a href="{{ url_for('view_requisition', requisition_id=req.id) }}" class="btn btn-sm btn-primary">
+                                    <i class="bi bi-eye"></i> View
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-center text-muted py-4">No requisitions yet. Create your first requisition using Quick Actions!</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- PACKAGING VIEW (READ-ONLY) -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-light">
+            <h5 class="mb-0"><i class="bi bi-box"></i> Packaging Records (View Only)</h5>
+        </div>
+        <div class="card-body">
+            <p class="text-muted mb-3">View packaging operations for awareness. You cannot create or edit packaging records.</p>
+            <a href="{{ url_for('packaging_list') }}" class="btn btn-outline-primary">
+                <i class="bi bi-eye"></i> View All Packaging Records
+            </a>
+        </div>
+    </div>
+
 </div>
-{% else %}
-<div class="empty-state">
-    <i class="bi bi-inbox"></i>
-    <h4 class="mt-3">No sheets yet</h4>
-    <p class="text-muted mb-4">Create your first 
-        {% if sheet_filter == 'daily' %}daily weight
-        {% elif sheet_filter == 'received' %}received batch
-        {% elif sheet_filter == 'outstock' %}out stock
-        {% elif sheet_filter == 'lost' %}lost/damaged
-        {% endif %}
-        sheet to get started
-    </p>
-    <button class="btn btn-primary btn-lg" data-bs-toggle="modal" data-bs-target="#createSheetModal">
-        <i class="bi bi-plus-circle"></i> Create First Sheet
-    </button>
-</div>
-{% endif %}
 
 <!-- Create Sheet Modal -->
 <div class="modal fade" id="createSheetModal" tabindex="-1">
@@ -260,14 +410,9 @@
             </div>
             <form method="POST" action="{{ url_for('create_sheet') }}">
                 <div class="modal-body">
-                    <p class="text-muted mb-4">
-                        Select the product type and sheet purpose for this intake sheet.
-                    </p>
-                    
-                    <!-- Product Type Selection -->
                     <label class="form-label fw-semibold">Product Type</label>
                     <div class="row g-3 mb-4">
-                        <div class="col-6 col-md-3">
+                        <div class="col-6">
                             <input type="radio" class="btn-check" name="product_type" 
                                    id="prod1" value="Maize Grains" required>
                             <label class="btn btn-outline-success w-100 py-3" for="prod1">
@@ -276,7 +421,7 @@
                                 <small class="text-muted">90kg/bag</small>
                             </label>
                         </div>
-                        <div class="col-6 col-md-3">
+                        <div class="col-6">
                             <input type="radio" class="btn-check" name="product_type" 
                                    id="prod2" value="Maize Germ">
                             <label class="btn btn-outline-success w-100 py-3" for="prod2">
@@ -285,63 +430,32 @@
                                 <small class="text-muted">90kg/bag</small>
                             </label>
                         </div>
-                        <div class="col-6 col-md-3">
-                            <input type="radio" class="btn-check" name="product_type" 
-                                   id="prod3" value="Animal Feeds">
-                            <label class="btn btn-outline-success w-100 py-3" for="prod3">
-                                <i class="bi bi-box"></i><br>
-                                <strong>Animal Feeds</strong><br>
-                                <small class="text-muted">50kg/bag</small>
-                            </label>
-                        </div>
-                        <div class="col-6 col-md-3">
-                            <input type="radio" class="btn-check" name="product_type" 
-                                   id="prod4" value="Other">
-                            <label class="btn btn-outline-success w-100 py-3" for="prod4">
-                                <i class="bi bi-box"></i><br>
-                                <strong>Other</strong><br>
-                                <small class="text-muted">50kg/bag</small>
-                            </label>
-                        </div>
                     </div>
                     
-                    <!-- Sheet Type Selection -->
-                    <label class="form-label fw-semibold">Sheet Purpose</label>
+                    <label class="form-label fw-semibold">Sheet Type</label>
                     <div class="row g-3">
-                        <div class="col-6 col-md-3">
+                        <div class="col-6">
                             <input type="radio" class="btn-check" name="sheet_type" 
                                    id="type1" value="daily" required>
                             <label class="btn btn-outline-primary w-100 py-3" for="type1">
                                 <i class="bi bi-clipboard-data"></i><br>
-                                <strong>Daily Weight</strong><br>
-                                <small class="text-muted">Regular intake</small>
+                                <strong>Daily Weight</strong>
                             </label>
                         </div>
-                        <div class="col-6 col-md-3">
+                        <div class="col-6">
                             <input type="radio" class="btn-check" name="sheet_type" 
                                    id="type2" value="received">
                             <label class="btn btn-outline-primary w-100 py-3" for="type2">
                                 <i class="bi bi-box-arrow-in-down"></i><br>
-                                <strong>Received Batch</strong><br>
-                                <small class="text-muted">Stock IN</small>
+                                <strong>Received Batch</strong>
                             </label>
                         </div>
-                        <div class="col-6 col-md-3">
+                        <div class="col-6">
                             <input type="radio" class="btn-check" name="sheet_type" 
                                    id="type3" value="outstock">
                             <label class="btn btn-outline-primary w-100 py-3" for="type3">
                                 <i class="bi bi-box-arrow-up"></i><br>
-                                <strong>Out Stock</strong><br>
-                                <small class="text-muted">Stock OUT</small>
-                            </label>
-                        </div>
-                        <div class="col-6 col-md-3">
-                            <input type="radio" class="btn-check" name="sheet_type" 
-                                   id="type4" value="lost">
-                            <label class="btn btn-outline-primary w-100 py-3" for="type4">
-                                <i class="bi bi-exclamation-triangle"></i><br>
-                                <strong>Lost/Damaged</strong><br>
-                                <small class="text-muted">Losses</small>
+                                <strong>Out Stock</strong>
                             </label>
                         </div>
                     </div>
@@ -361,12 +475,73 @@
 
 {% block extra_js %}
 <script>
-// Auto-refresh every 30 seconds to show real-time updates
-setInterval(function() {
-    // Only reload if there are active sheets
-    {% if sheet_data|selectattr('sheet.status', 'equalto', 'In Progress')|list|length() > 0 %}
-    location.reload();
-    {% endif %}
-}, 30000);
+// Kenya Time Clock
+function updateKenyaTime() {
+    const now = new Date();
+    const kenyaTime = now.toLocaleTimeString('en-US', { 
+        timeZone: 'Africa/Nairobi',
+        hour12: true, 
+        hour: '2-digit', 
+        minute: '2-digit',
+        second: '2-digit'
+    });
+    document.getElementById('kenyaTime').textContent = kenyaTime;
+}
+setInterval(updateKenyaTime, 1000);
+updateKenyaTime();
+
+// Update hours counter if clocked in
+{% if is_clocked_in %}
+function updateHoursCounter() {
+    fetch('{{ url_for("worker_clock_status") }}')
+        .then(response => response.json())
+        .then(data => {
+            if (data.clocked_in) {
+                document.getElementById('hoursCounter').textContent = data.hours_worked.toFixed(2);
+            }
+        });
+}
+setInterval(updateHoursCounter, 60000); // Update every minute
+{% endif %}
+
+// Clock In
+function clockIn() {
+    fetch('{{ url_for("worker_clock_in") }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'}
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            document.getElementById('clockError').textContent = data.message;
+            document.getElementById('clockError').style.display = 'block';
+        }
+    })
+    .catch(error => {
+        document.getElementById('clockError').textContent = 'Error clocking in. Please try again.';
+        document.getElementById('clockError').style.display = 'block';
+    });
+}
+
+// Clock Out
+function clockOut() {
+    if (confirm('Are you sure you want to clock out for today?')) {
+        fetch('{{ url_for("worker_clock_out") }}', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.message);
+                location.reload();
+            } else {
+                alert('Error: ' + data.message);
+            }
+        });
+    }
+}
 </script>
 {% endblock %}

@@ -1,0 +1,373 @@
+{% extends "base.html" %}
+
+{% block title %}Dispatch {{ dispatch.tracking_number }} - Dunedeck Millers{% endblock %}
+
+{% block content %}
+<!-- Print Header (visible only when printing) -->
+<div class="print-only" style="display: none;">
+    <img src="{{ url_for('static', filename='images/header.jpeg') }}" 
+         style="width: 100%; margin-bottom: 20px;">
+</div>
+
+<!-- Header -->
+<div class="row mb-4 no-print">
+    <div class="col-md-8">
+        <h2 class="fw-bold">
+            <i class="bi bi-truck"></i> {{ dispatch.tracking_number }}
+        </h2>
+        <p class="text-muted mb-0">Dispatch Details</p>
+    </div>
+    <div class="col-md-4 text-md-end">
+        <a href="{{ url_for('dispatches_list') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Back to List
+        </a>
+        <button class="btn btn-info" onclick="window.print()">
+            <i class="bi bi-printer"></i> Print
+        </button>
+    </div>
+</div>
+
+<!-- Status Alert -->
+<div class="row mb-4">
+    <div class="col-12">
+        {% if dispatch.status == 'pending' %}
+        <div class="alert alert-warning no-print">
+            <i class="bi bi-clock-history"></i>
+            <strong>Pending Approval</strong> - This dispatch is waiting for manager authorization.
+        </div>
+        {% elif dispatch.status == 'approved' %}
+        <div class="alert alert-success">
+            <i class="bi bi-check-circle-fill"></i>
+            <strong>Approved</strong> - Dispatch authorized by {{ dispatch.authorized_by.name }} on {{ dispatch.authorization_date.strftime('%B %d, %Y') }}
+            <br><small>Inventory has been updated. Stock reduced from processed inventory.</small>
+        </div>
+        {% elif dispatch.status == 'rejected' %}
+        <div class="alert alert-danger">
+            <i class="bi bi-x-circle-fill"></i>
+            <strong>Rejected</strong> - This dispatch was not approved.
+        </div>
+        {% elif dispatch.status == 'completed' %}
+        <div class="alert alert-info">
+            <i class="bi bi-box-seam"></i>
+            <strong>Completed</strong> - Dispatch delivered and completed.
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Dispatch Type Badge -->
+<div class="row mb-4">
+    <div class="col-12">
+        {% if dispatch.dispatch_type == 'sale' %}
+        <span class="badge bg-success" style="font-size: 1.2rem; padding: 0.5rem 1rem;">
+            <i class="bi bi-cash"></i> SALES DISPATCH
+        </span>
+        {% else %}
+        <span class="badge bg-secondary" style="font-size: 1.2rem; padding: 0.5rem 1rem;">
+            <i class="bi bi-gift"></i> SAMPLE DISPATCH
+        </span>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Main Details -->
+<div class="row mb-4">
+    <!-- Dispatch Information -->
+    <div class="col-md-6">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="bi bi-info-circle"></i> Dispatch Information</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-borderless mb-0">
+                    <tr>
+                        <th width="40%">Tracking Number:</th>
+                        <td class="fw-bold">{{ dispatch.tracking_number }}</td>
+                    </tr>
+                    <tr>
+                        <th>Dispatch Date:</th>
+                        <td>{{ dispatch.dispatch_date.strftime('%B %d, %Y') }}</td>
+                    </tr>
+                    {% if dispatch.batch_number %}
+                    <tr>
+                        <th>Batch Number:</th>
+                        <td class="fw-semibold">{{ dispatch.batch_number }}</td>
+                    </tr>
+                    {% endif %}
+                    <tr>
+                        <th>Dispatch Type:</th>
+                        <td>
+                            {% if dispatch.dispatch_type == 'sale' %}
+                            <span class="badge bg-success">Sale</span>
+                            {% else %}
+                            <span class="badge bg-secondary">Sample</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>Created By:</th>
+                        <td><i class="bi bi-person"></i> {{ dispatch.created_by.name }}</td>
+                    </tr>
+                    <tr>
+                        <th>Created At:</th>
+                        <td>{{ dispatch.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                    </tr>
+                    <tr>
+                        <th>Status:</th>
+                        <td>
+                            {% if dispatch.status == 'pending' %}
+                            <span class="badge bg-warning">Pending</span>
+                            {% elif dispatch.status == 'approved' %}
+                            <span class="badge bg-success">Approved</span>
+                            {% elif dispatch.status == 'rejected' %}
+                            <span class="badge bg-danger">Rejected</span>
+                            {% elif dispatch.status == 'completed' %}
+                            <span class="badge bg-info">Completed</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+        
+        <!-- Reason/Purpose -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-warning text-white">
+                <h5 class="mb-0"><i class="bi bi-chat-left-text"></i> Reason/Purpose</h5>
+            </div>
+            <div class="card-body">
+                <p class="mb-0">{{ dispatch.reason or 'No reason provided' }}</p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Driver & Vehicle Information -->
+    <div class="col-md-6">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-dark text-white">
+                <h5 class="mb-0"><i class="bi bi-person-badge"></i> Driver & Vehicle Details</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-borderless mb-0">
+                    <tr>
+                        <th width="40%">Driver Name:</th>
+                        <td>
+                            {% if dispatch.driver_name %}
+                            <i class="bi bi-person"></i> {{ dispatch.driver_name }}
+                            {% else %}
+                            <span class="text-muted">Not provided</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>Driver Phone:</th>
+                        <td>
+                            {% if dispatch.driver_phone %}
+                            <a href="tel:{{ dispatch.driver_phone }}" class="text-decoration-none">
+                                <i class="bi bi-telephone"></i> {{ dispatch.driver_phone }}
+                            </a>
+                            {% else %}
+                            <span class="text-muted">Not provided</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>Vehicle Registration:</th>
+                        <td>
+                            {% if dispatch.vehicle_registration %}
+                            <span class="badge bg-dark" style="font-size: 1rem;">{{ dispatch.vehicle_registration }}</span>
+                            {% else %}
+                            <span class="text-muted">Not provided</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+        
+        <!-- Authorization Details -->
+        {% if dispatch.status == 'approved' %}
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0"><i class="bi bi-check-circle"></i> Authorization Details</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-borderless mb-0">
+                    <tr>
+                        <th width="40%">Authorized By:</th>
+                        <td>{{ dispatch.authorized_by.name }}</td>
+                    </tr>
+                    <tr>
+                        <th>Authorization Date:</th>
+                        <td>{{ dispatch.authorization_date.strftime('%B %d, %Y') }}</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+        
+        <!-- Linked Requisition -->
+        {% if dispatch.requisition_id %}
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0"><i class="bi bi-link-45deg"></i> Linked Requisition</h5>
+            </div>
+            <div class="card-body">
+                <p class="mb-2">
+                    <strong>{{ dispatch.requisition.requisition_number }}</strong>
+                </p>
+                <p class="mb-2">
+                    <small class="text-muted">
+                        Requested by: {{ dispatch.requisition.requested_by.name }}
+                        <br>Date: {{ dispatch.requisition.date_requested.strftime('%Y-%m-%d') }}
+                    </small>
+                </p>
+                <a href="{{ url_for('view_requisition', requisition_id=dispatch.requisition_id) }}" 
+                   class="btn btn-sm btn-outline-info">
+                    <i class="bi bi-eye"></i> View Requisition
+                </a>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Totals Summary Cards -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card bg-primary text-white shadow-sm">
+            <div class="card-body text-center">
+                <h6 class="text-white-50">TOTAL UNITS</h6>
+                <h1 class="mb-0">{{ "%.2f"|format(dispatch.total_units) }}</h1>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card bg-success text-white shadow-sm">
+            <div class="card-body text-center">
+                <h6 class="text-white-50">TOTAL WEIGHT</h6>
+                <h1 class="mb-0">{{ "%.2f"|format(dispatch.total_weight_kg) }} <small>kg</small></h1>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Items Table -->
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-light">
+        <h5 class="mb-0"><i class="bi bi-box-seam"></i> Dispatch Items ({{ dispatch.items|length }})</h5>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover table-bordered mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th width="5%">#</th>
+                        <th width="40%">Item Description</th>
+                        <th width="15%">Quantity</th>
+                        <th width="15%">Unit Weight (kg)</th>
+                        <th width="12.5%">Total Units</th>
+                        <th width="12.5%">Total Weight (kg)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in dispatch.items %}
+                    <tr>
+                        <td class="text-center fw-bold">{{ loop.index }}</td>
+                        <td class="fw-semibold">{{ item.item_description }}</td>
+                        <td><span class="badge bg-primary">{{ "%.2f"|format(item.quantity) }}</span></td>
+                        <td>{{ "%.2f"|format(item.unit_weight_kg) }} kg</td>
+                        <td class="fw-bold">{{ "%.2f"|format(item.total_units) }}</td>
+                        <td class="fw-bold text-success">{{ "%.2f"|format(item.total_weight_kg) }} kg</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot class="table-light">
+                    <tr>
+                        <th colspan="4" class="text-end">GRAND TOTALS:</th>
+                        <th>{{ "%.2f"|format(dispatch.total_units) }}</th>
+                        <th class="text-success">{{ "%.2f"|format(dispatch.total_weight_kg) }} kg</th>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Inventory Impact Notice -->
+{% if dispatch.status == 'approved' %}
+<div class="alert alert-success">
+    <h5 class="alert-heading">
+        <i class="bi bi-database-check"></i> Inventory Updated
+    </h5>
+    <p class="mb-0">
+        This dispatch has been approved and <strong>{{ "%.2f"|format(dispatch.total_weight_kg) }} kg</strong> 
+        ({{ "%.2f"|format(dispatch.total_units) }} units) has been deducted from the processed inventory.
+    </p>
+</div>
+{% endif %}
+
+<!-- Linked Invoice -->
+{% if dispatch.invoice %}
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-warning text-white">
+        <h5 class="mb-0"><i class="bi bi-receipt"></i> Linked Invoice</h5>
+    </div>
+    <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h6 class="mb-1">{{ dispatch.invoice.invoice_number }}</h6>
+                <p class="mb-0 text-muted">
+                    Customer: {{ dispatch.invoice.customer_name }}
+                    <br>Total: KSh {{ "{:,.2f}".format(dispatch.invoice.grand_total) }}
+                    <br>Status: 
+                    <span class="badge bg-{{ 'success' if dispatch.invoice.payment_status == 'paid' else 'warning' }}">
+                        {{ dispatch.invoice.payment_status|title }}
+                    </span>
+                </p>
+            </div>
+            <div>
+                <a href="{{ url_for('view_invoice', invoice_id=dispatch.invoice.id) }}" 
+                   class="btn btn-outline-warning">
+                    <i class="bi bi-eye"></i> View Invoice
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<style>
+@media print {
+    .no-print {
+        display: none !important;
+    }
+    
+    .print-only {
+        display: block !important;
+    }
+    
+    .card {
+        box-shadow: none !important;
+        border: 1px solid #dee2e6 !important;
+        page-break-inside: avoid;
+    }
+    
+    .table {
+        font-size: 11px;
+    }
+    
+    body {
+        print-color-adjust: exact;
+        -webkit-print-color-adjust: exact;
+    }
+}
+
+.print-only {
+    display: none;
+}
+</style>
+{% endblock %}

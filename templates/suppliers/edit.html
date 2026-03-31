@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Supplier - Dunedeck Millers{% endblock %}
+
+{% block content %}
+<!-- Header -->
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h2 class="fw-bold">
+            <i class="bi bi-pencil"></i> Edit Supplier Record
+        </h2>
+        <p class="text-muted mb-0">Update supplier information</p>
+    </div>
+    <div class="col-md-4 text-md-end">
+        <a href="{{ url_for('view_supplier', supplier_id=supplier.id) }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Back to Supplier
+        </a>
+    </div>
+</div>
+
+<!-- Alert -->
+<div class="alert alert-warning">
+    <i class="bi bi-exclamation-triangle"></i>
+    <strong>Manager Only:</strong> You can edit supplier details and delete items to correct errors. Items can only be deleted, not edited.
+</div>
+
+<!-- Form -->
+<form method="POST" action="{{ url_for('edit_supplier', supplier_id=supplier.id) }}">
+    <div class="row">
+        <!-- Left Column -->
+        <div class="col-md-6">
+            <!-- Supplier Information -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="bi bi-building"></i> Supplier Information</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="supplier_name" class="form-label fw-semibold">Supplier Name *</label>
+                        <input type="text" class="form-control" id="supplier_name" name="supplier_name" 
+                               value="{{ supplier.supplier_name }}" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="kra_pin" class="form-label fw-semibold">KRA PIN</label>
+                        <input type="text" class="form-control" id="kra_pin" name="kra_pin"
+                               value="{{ supplier.kra_pin or '' }}">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="transaction_date" class="form-label fw-semibold">Transaction Date *</label>
+                        <input type="date" class="form-control" id="transaction_date" name="transaction_date" 
+                               value="{{ supplier.transaction_date.isoformat() }}" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="phone_number" class="form-label fw-semibold">Phone Number</label>
+                        <input type="tel" class="form-control" id="phone_number" name="phone_number"
+                               value="{{ supplier.phone_number or '' }}">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="address" class="form-label fw-semibold">Address</label>
+                        <input type="text" class="form-control" id="address" name="address"
+                               value="{{ supplier.address or '' }}">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="city" class="form-label fw-semibold">City</label>
+                        <input type="text" class="form-control" id="city" name="city"
+                               value="{{ supplier.city or '' }}">
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Right Column -->
+        <div class="col-md-6">
+            <!-- Transaction Details -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-warning text-white">
+                    <h5 class="mb-0"><i class="bi bi-receipt"></i> Transaction Details</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="invoice_number" class="form-label fw-semibold">Invoice Number</label>
+                        <input type="text" class="form-control" id="invoice_number" name="invoice_number"
+                               value="{{ supplier.invoice_number or '' }}">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="lpo_number" class="form-label fw-semibold">LPO Number</label>
+                        <input type="text" class="form-control" id="lpo_number" name="lpo_number"
+                               value="{{ supplier.lpo_number or '' }}">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="reference_code" class="form-label fw-semibold">Reference Code</label>
+                        <input type="text" class="form-control" id="reference_code" name="reference_code"
+                               value="{{ supplier.reference_code or '' }}">
+                    </div>
+                    
+                    <div class="alert alert-info mt-3">
+                        <i class="bi bi-info-circle"></i>
+                        To modify payments, use the "Add Payment" button on the supplier view page.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Items Section (Can Delete) -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-light">
+            <h5 class="mb-0"><i class="bi bi-box-seam"></i> Items Purchased (Delete if Error)</h5>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-bordered mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th width="5%">#</th>
+                            <th width="20%">Product Type</th>
+                            <th width="12%">Quantity</th>
+                            <th width="12%">Total Weight (KG)</th>
+                            <th width="12%">Unit Price</th>
+                            <th width="8%">Basis</th>
+                            <th width="13%">Total Amount</th>
+                            <th width="8%">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in supplier.items %}
+                        <tr id="item-row-{{ item.id }}">
+                            <td class="text-center">{{ loop.index }}</td>
+                            <td>{{ item.product_type }}</td>
+                            <td>
+                                {% if item.product_type == 'Maize Grains' %}
+                                {{ "%.2f"|format(item.total_bags if item.total_bags else 0) }} bags
+                                {% else %}
+                                {{ "%.2f"|format(item.quantity) }} kg
+                                {% endif %}
+                            </td>
+                            <td>{{ "%.2f"|format(item.total_weight if item.total_weight else 0) }} kg</td>
+                            <td>KSh {{ "{:,.2f}".format(item.unit_price) }}</td>
+                            <td><small>{{ 'per bag' if item.price_basis == 'per_bag' else 'per kg' }}</small></td>
+                            <td class="fw-bold text-success">KSh {{ "{:,.2f}".format(item.total_amount) }}</td>
+                            <td class="text-center">
+                                <button type="button" class="btn btn-sm btn-danger" 
+                                        onclick="deleteItem({{ item.id }}, '{{ item.product_type }}')"
+                                        title="Delete this item">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot class="table-light">
+                        <tr>
+                            <th colspan="6" class="text-end">GRAND TOTAL:</th>
+                            <th class="text-success" id="grand-total">KSh {{ "{:,.2f}".format(supplier.grand_total) }}</th>
+                            <th></th>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+            <div class="alert alert-warning mt-3 mb-0 mx-3">
+                <i class="bi bi-exclamation-triangle"></i>
+                <strong>Manager Only:</strong> Delete items only to correct entry errors. Deleted items cannot be recovered.
+            </div>
+        </div>
+    </div>
+    
+    <!-- Submit Section -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <p class="mb-0 text-muted">
+                        <i class="bi bi-info-circle"></i> 
+                        Changes will be saved immediately.
+                    </p>
+                </div>
+                <div>
+                    <a href="{{ url_for('view_supplier', supplier_id=supplier.id) }}" class="btn btn-secondary me-2">
+                        <i class="bi bi-x-circle"></i> Cancel
+                    </a>
+                    <button type="submit" class="btn btn-success">
+                        <i class="bi bi-check-circle"></i> Save Changes
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function deleteItem(itemId, productType) {
+    if (!confirm(`Are you sure you want to delete "${productType}"?\n\nThis action cannot be undone!`)) {
+        return;
+    }
+    
+    fetch(`/supplier/item/${itemId}/delete`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Remove the row
+            document.getElementById(`item-row-${itemId}`).remove();
+            
+            // Update grand total
+            document.getElementById('grand-total').textContent = 
+                'KSh ' + data.new_total.toLocaleString('en-KE', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            
+            alert(data.message);
+        } else {
+            alert('Error: ' + data.message);
+        }
+    })
+    .catch(error => {
+        alert('Error deleting item');
+        console.error(error);
+    });
+}
+</script>
+{% endblock %}

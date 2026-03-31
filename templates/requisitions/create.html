@@ -1,0 +1,230 @@
+{% extends "base.html" %}
+
+{% block title %}Create Internal Requisition - Dunedeck Millers{% endblock %}
+
+{% block content %}
+<!-- Header -->
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h2 class="fw-bold">
+            <i class="bi bi-plus-circle"></i> New Internal Requisition
+        </h2>
+        <p class="text-muted mb-0">Request stock for internal use</p>
+    </div>
+    <div class="col-md-4 text-md-end">
+        <a href="{{ url_for('requisitions_list') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Back to Requisitions
+        </a>
+    </div>
+</div>
+
+<!-- Form -->
+<form method="POST" action="{{ url_for('create_requisition') }}" id="requisitionForm">
+    <div class="row">
+        <!-- Left Column -->
+        <div class="col-md-6">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="bi bi-info-circle"></i> Requisition Information</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="date_requested" class="form-label fw-semibold">Date Requested *</label>
+                        <input type="date" class="form-control" id="date_requested" name="date_requested" 
+                               value="{{ now().date().isoformat() }}" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Requested By</label>
+                        <input type="text" class="form-control" value="{{ current_user.name }}" readonly
+                               style="background-color: #f8f9fa;">
+                        <small class="text-muted">Your requisition will be sent to manager for approval</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="department" class="form-label fw-semibold">Department/Section</label>
+                        <input type="text" class="form-control" id="department" name="department"
+                               placeholder="e.g., Production, Warehouse, Packaging">
+                        <small class="text-muted">Which department needs these items?</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="purpose" class="form-label fw-semibold">Purpose *</label>
+                        <textarea class="form-control" id="purpose" name="purpose" rows="4" required
+                                  placeholder="Explain why you need these items..."></textarea>
+                        <small class="text-muted">Provide clear justification for this requisition</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Right Column -->
+        <div class="col-md-6">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-warning text-white">
+                    <h5 class="mb-0"><i class="bi bi-exclamation-triangle"></i> Important Notes</h5>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info mb-3">
+                        <h6 class="alert-heading">
+                            <i class="bi bi-info-circle"></i> Requisition Workflow
+                        </h6>
+                        <ol class="mb-0 ps-3">
+                            <li>You create the requisition</li>
+                            <li>Manager reviews and approves/rejects</li>
+                            <li>If approved, dispatch is created</li>
+                            <li>You receive the items</li>
+                            <li>Mark as fulfilled</li>
+                        </ol>
+                    </div>
+                    
+                    <div class="alert alert-warning mb-0">
+                        <h6 class="alert-heading">
+                            <i class="bi bi-lightbulb"></i> Tips for Approval
+                        </h6>
+                        <ul class="mb-0 ps-3">
+                            <li>Be specific about items needed</li>
+                            <li>Provide accurate quantities</li>
+                            <li>Explain the reason clearly</li>
+                            <li>Request only what's necessary</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Items Section -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header" style="background: linear-gradient(135deg, var(--dm-green) 0%, #0d6832 100%);">
+            <div class="d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 text-white">
+                    <i class="bi bi-list-check"></i> Items Requested
+                </h5>
+                <button type="button" class="btn btn-light btn-sm" onclick="addItemRow()">
+                    <i class="bi bi-plus-circle"></i> Add Item
+                </button>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-bordered" id="itemsTable">
+                    <thead class="table-light">
+                        <tr>
+                            <th width="45%">Item Description *</th>
+                            <th width="15%">Quantity *</th>
+                            <th width="35%">Reason</th>
+                            <th width="5%"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="itemsTableBody">
+                        <tr>
+                            <td>
+                                <input type="text" class="form-control" name="item_description[]" required
+                                       placeholder="e.g., Maize Grains 1KG bags">
+                            </td>
+                            <td>
+                                <input type="number" step="0.01" class="form-control" name="quantity[]" 
+                                       required min="0.01" placeholder="0" onchange="updateItemCount()">
+                            </td>
+                            <td>
+                                <input type="text" class="form-control" name="reason[]"
+                                       placeholder="Why this item?">
+                            </td>
+                            <td>
+                                <button type="button" class="btn btn-sm btn-danger" onclick="removeItemRow(this)">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    </tbody>
+                    <tfoot>
+                        <tr class="table-light">
+                            <td colspan="2" class="text-end fw-bold">TOTAL ITEMS:</td>
+                            <td colspan="2">
+                                <span id="totalItemsCount" class="fw-bold fs-5">1</span> item(s)
+                            </td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Submit Section -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <p class="mb-0 text-muted">
+                        <i class="bi bi-info-circle"></i> 
+                        Your requisition will be sent to the manager for review.
+                        You'll be notified once it's approved or rejected.
+                    </p>
+                </div>
+                <div>
+                    <button type="button" class="btn btn-secondary me-2" onclick="window.history.back()">
+                        <i class="bi bi-x-circle"></i> Cancel
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-send"></i> Submit Requisition
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function addItemRow() {
+    const tbody = document.getElementById('itemsTableBody');
+    const newRow = tbody.rows[0].cloneNode(true);
+    
+    // Clear input values
+    newRow.querySelectorAll('input').forEach(input => {
+        input.value = '';
+    });
+    
+    tbody.appendChild(newRow);
+    updateItemCount();
+}
+
+function removeItemRow(button) {
+    const tbody = document.getElementById('itemsTableBody');
+    if (tbody.rows.length > 1) {
+        button.closest('tr').remove();
+        updateItemCount();
+    } else {
+        alert('At least one item is required');
+    }
+}
+
+function updateItemCount() {
+    const tbody = document.getElementById('itemsTableBody');
+    document.getElementById('totalItemsCount').textContent = tbody.rows.length;
+}
+
+// Form validation
+document.getElementById('requisitionForm').addEventListener('submit', function(e) {
+    const items = document.querySelectorAll('#itemsTableBody tr');
+    let hasValidItem = false;
+    
+    items.forEach(row => {
+        const desc = row.querySelector('input[name="item_description[]"]').value;
+        const qty = row.querySelector('input[name="quantity[]"]').value;
+        
+        if (desc && qty) {
+            hasValidItem = true;
+        }
+    });
+    
+    if (!hasValidItem) {
+        e.preventDefault();
+        alert('Please add at least one item with description and quantity');
+    }
+});
+</script>
+{% endblock %}

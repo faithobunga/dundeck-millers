@@ -1,0 +1,392 @@
+{% extends "base.html" %}
+
+{% block title %}Create Invoice - Dunedeck Millers{% endblock %}
+
+{% block content %}
+<!-- Header -->
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h2 class="fw-bold">
+            <i class="bi bi-plus-circle"></i> New Invoice
+        </h2>
+        <p class="text-muted mb-0">Create a new sales invoice</p>
+    </div>
+    <div class="col-md-4 text-md-end">
+        <a href="{{ url_for('invoices_list') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Back to Invoices
+        </a>
+    </div>
+</div>
+
+<!-- Form -->
+<form method="POST" action="{{ url_for('create_invoice') }}" id="invoiceForm">
+    <div class="row">
+        <!-- Left Column -->
+        <div class="col-md-6">
+            <!-- Invoice Information Card -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="bi bi-info-circle"></i> Invoice Information</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Invoice Number *</label>
+                        <div class="btn-group w-100 mb-2" role="group">
+                            <input type="radio" class="btn-check" name="number_type" id="auto_number" value="auto" checked onchange="toggleInvoiceNumber()">
+                            <label class="btn btn-outline-primary" for="auto_number">
+                                <i class="bi bi-lightning"></i> Auto-Generate
+                            </label>
+                            
+                            <input type="radio" class="btn-check" name="number_type" id="manual_number" value="manual" onchange="toggleInvoiceNumber()">
+                            <label class="btn btn-outline-primary" for="manual_number">
+                                <i class="bi bi-pencil"></i> Manual Entry
+                            </label>
+                        </div>
+                        
+                        <input type="text" class="form-control" id="invoice_number" name="invoice_number"
+                               placeholder="e.g., INV-2024-001" style="display: none;" onblur="checkInvoiceNumber()">
+                        <small class="text-muted" id="auto_help">Next number will be auto-generated</small>
+                        <div id="numberValidation" style="display: none;"></div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="invoice_date" class="form-label fw-semibold">Invoice Date *</label>
+                        <input type="date" class="form-control" id="invoice_date" name="invoice_date" 
+                               value="{{ now().date().isoformat() }}" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="reference_code" class="form-label fw-semibold">Reference Code</label>
+                        <input type="text" class="form-control" id="reference_code" name="reference_code"
+                               placeholder="e.g., PO-2024-001">
+                        <small class="text-muted">Purchase order or internal reference</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="dispatch_id" class="form-label fw-semibold">Link to Dispatch (Optional)</label>
+                        <select class="form-select" id="dispatch_id" name="dispatch_id">
+                            <option value="">-- No Dispatch Link --</option>
+                            {% for dispatch in dispatches %}
+                            <option value="{{ dispatch.id }}">
+                                {{ dispatch.tracking_number }} - {{ dispatch.dispatch_date.strftime('%Y-%m-%d') }} 
+                                ({{ "%.2f"|format(dispatch.total_weight_kg) }} kg)
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Right Column -->
+        <div class="col-md-6">
+            <!-- Customer Information Card -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="bi bi-person"></i> Customer Information</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="customer_name" class="form-label fw-semibold">Customer Name *</label>
+                        <input type="text" class="form-control" id="customer_name" name="customer_name" required
+                               placeholder="Full name or company name">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="kra_pin" class="form-label fw-semibold">KRA PIN</label>
+                        <input type="text" class="form-control" id="kra_pin" name="kra_pin"
+                               placeholder="e.g., A001234567X" maxlength="11">
+                        <small class="text-muted">Kenya Revenue Authority PIN number</small>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="phone_number" class="form-label fw-semibold">Phone Number</label>
+                            <input type="tel" class="form-control" id="phone_number" name="phone_number"
+                                   placeholder="e.g., 0712345678">
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label for="email" class="form-label fw-semibold">Email</label>
+                            <input type="email" class="form-control" id="email" name="email"
+                                   placeholder="customer@example.com">
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="city" class="form-label fw-semibold">City</label>
+                            <input type="text" class="form-control" id="city" name="city"
+                                   placeholder="e.g., Nairobi">
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label for="state" class="form-label fw-semibold">State/County</label>
+                            <input type="text" class="form-control" id="state" name="state"
+                                   placeholder="e.g., Nairobi County">
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="zip_code" class="form-label fw-semibold">Postal Code</label>
+                        <input type="text" class="form-control" id="zip_code" name="zip_code"
+                               placeholder="e.g., 00100">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Items Section -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header" style="background: linear-gradient(135deg, var(--dm-green) 0%, #0d6832 100%);">
+            <div class="d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 text-white">
+                    <i class="bi bi-box-seam"></i> Invoice Items
+                </h5>
+                <button type="button" class="btn btn-light btn-sm" onclick="addItemRow()">
+                    <i class="bi bi-plus-circle"></i> Add Item
+                </button>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-bordered" id="itemsTable">
+                    <thead class="table-light">
+                        <tr>
+                            <th width="40%">Description *</th>
+                            <th width="15%">Quantity *</th>
+                            <th width="20%">Unit Price (KSh) *</th>
+                            <th width="20%">Total Amount (KSh)</th>
+                            <th width="5%"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="itemsTableBody">
+                        <tr>
+                            <td>
+                                <input type="text" class="form-control" name="description[]" required
+                                       placeholder="e.g., Maize Grains 1KG - 50 bags">
+                            </td>
+                            <td>
+                                <input type="number" step="0.01" class="form-control item-quantity" 
+                                       name="quantity[]" required min="0.01" placeholder="0" 
+                                       onchange="calculateRowTotal(this)">
+                            </td>
+                            <td>
+                                <input type="number" step="0.01" class="form-control item-price" 
+                                       name="unit_price[]" required min="0.01" placeholder="0.00" 
+                                       onchange="calculateRowTotal(this)">
+                            </td>
+                            <td>
+                                <input type="text" class="form-control item-total" readonly 
+                                       value="0.00" style="background-color: #f8f9fa;">
+                            </td>
+                            <td>
+                                <button type="button" class="btn btn-sm btn-danger" onclick="removeItemRow(this)">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    </tbody>
+                    <tfoot>
+                        <tr class="table-light">
+                            <td colspan="3" class="text-end fw-bold">SUBTOTAL:</td>
+                            <td colspan="2">
+                                <input type="text" id="subtotal" class="form-control fw-bold" readonly 
+                                       value="KSh 0.00" style="background-color: #e7f3ff;">
+                            </td>
+                        </tr>
+                        <tr class="table-light">
+                            <td colspan="3" class="text-end fw-bold">TAX (Optional):</td>
+                            <td colspan="2">
+                                <div class="input-group">
+                                    <span class="input-group-text">KSh</span>
+                                    <input type="number" step="0.01" id="taxInput" name="tax" 
+                                           class="form-control" value="0" min="0" 
+                                           onchange="calculateGrandTotal()">
+                                </div>
+                            </td>
+                        </tr>
+                        <tr class="table-light">
+                            <td colspan="3" class="text-end fw-bold">GRAND TOTAL:</td>
+                            <td colspan="2">
+                                <input type="text" id="grandTotal" class="form-control fw-bold" readonly 
+                                       value="KSh 0.00" style="background-color: #fff3cd; font-size: 1.2rem;">
+                            </td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Submit Section -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <p class="mb-0 text-muted">
+                        <i class="bi bi-info-circle"></i> 
+                        Invoice will be created by <strong>{{ current_user.name }}</strong>
+                    </p>
+                </div>
+                <div>
+                    <button type="button" class="btn btn-secondary me-2" onclick="window.history.back()">
+                        <i class="bi bi-x-circle"></i> Cancel
+                    </button>
+                    <button type="submit" class="btn btn-success" id="submitBtn">
+                        <i class="bi bi-check-circle"></i> Create Invoice
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let numberExists = false;
+
+function toggleInvoiceNumber() {
+    const numberType = document.querySelector('input[name="number_type"]:checked').value;
+    const invoiceNumberInput = document.getElementById('invoice_number');
+    const autoHelp = document.getElementById('auto_help');
+    const validation = document.getElementById('numberValidation');
+    
+    if (numberType === 'manual') {
+        invoiceNumberInput.style.display = 'block';
+        invoiceNumberInput.required = true;
+        autoHelp.style.display = 'none';
+    } else {
+        invoiceNumberInput.style.display = 'none';
+        invoiceNumberInput.required = false;
+        autoHelp.style.display = 'block';
+        validation.style.display = 'none';
+        numberExists = false;
+    }
+}
+
+function checkInvoiceNumber() {
+    const invoiceNumber = document.getElementById('invoice_number').value.trim();
+    const validation = document.getElementById('numberValidation');
+    const submitBtn = document.getElementById('submitBtn');
+    
+    if (!invoiceNumber) {
+        validation.style.display = 'none';
+        return;
+    }
+    
+    // Show loading
+    validation.innerHTML = '<small class="text-info"><i class="bi bi-hourglass-split"></i> Checking...</small>';
+    validation.style.display = 'block';
+    
+    // Check via API
+    fetch(`/invoice/check-number/${encodeURIComponent(invoiceNumber)}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.exists) {
+                validation.innerHTML = `<small class="text-danger"><i class="bi bi-x-circle-fill"></i> Invoice number already exists! Used by customer: ${data.customer}</small>`;
+                validation.className = 'alert alert-danger py-2 mt-2';
+                numberExists = true;
+                submitBtn.disabled = true;
+            } else {
+                validation.innerHTML = '<small class="text-success"><i class="bi bi-check-circle-fill"></i> Invoice number is available</small>';
+                validation.className = 'alert alert-success py-2 mt-2';
+                numberExists = false;
+                submitBtn.disabled = false;
+            }
+            validation.style.display = 'block';
+        })
+        .catch(error => {
+            console.error('Error checking invoice number:', error);
+            validation.style.display = 'none';
+        });
+}
+
+function addItemRow() {
+    const tbody = document.getElementById('itemsTableBody');
+    const newRow = tbody.rows[0].cloneNode(true);
+    
+    // Clear input values
+    newRow.querySelectorAll('input').forEach(input => {
+        if (!input.classList.contains('item-total')) {
+            input.value = '';
+        } else {
+            input.value = '0.00';
+        }
+    });
+    
+    tbody.appendChild(newRow);
+}
+
+function removeItemRow(button) {
+    const tbody = document.getElementById('itemsTableBody');
+    if (tbody.rows.length > 1) {
+        button.closest('tr').remove();
+        calculateGrandTotal();
+    } else {
+        alert('At least one item is required');
+    }
+}
+
+function calculateRowTotal(input) {
+    const row = input.closest('tr');
+    const quantity = parseFloat(row.querySelector('.item-quantity').value) || 0;
+    const price = parseFloat(row.querySelector('.item-price').value) || 0;
+    const total = quantity * price;
+    
+    row.querySelector('.item-total').value = total.toFixed(2);
+    calculateGrandTotal();
+}
+
+function calculateGrandTotal() {
+    let subtotal = 0;
+    
+    document.querySelectorAll('.item-total').forEach(input => {
+        subtotal += parseFloat(input.value) || 0;
+    });
+    
+    const tax = parseFloat(document.getElementById('taxInput').value) || 0;
+    const grandTotal = subtotal + tax;
+    
+    document.getElementById('subtotal').value = 'KSh ' + subtotal.toLocaleString('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    });
+    
+    document.getElementById('grandTotal').value = 'KSh ' + grandTotal.toLocaleString('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    });
+}
+
+// Form validation
+document.getElementById('invoiceForm').addEventListener('submit', function(e) {
+    if (numberExists) {
+        e.preventDefault();
+        alert('Cannot create invoice: Invoice number already exists!');
+        return;
+    }
+    
+    const items = document.querySelectorAll('#itemsTableBody tr');
+    let hasValidItem = false;
+    
+    items.forEach(row => {
+        const desc = row.querySelector('input[name="description[]"]').value;
+        const qty = row.querySelector('input[name="quantity[]"]').value;
+        const price = row.querySelector('input[name="unit_price[]"]').value;
+        
+        if (desc && qty && price) {
+            hasValidItem = true;
+        }
+    });
+    
+    if (!hasValidItem) {
+        e.preventDefault();
+        alert('Please add at least one item with description, quantity, and price');
+    }
+});
+</script>
+{% endblock %}

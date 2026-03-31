@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+
+{% block title %}Customer Folders - Dunedeck Millers{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h2 class="fw-bold">
+            <i class="bi bi-folder2-open"></i> Customer Invoice Folders
+        </h2>
+        <p class="text-muted mb-0">View all invoices and payment history by customer</p>
+    </div>
+    <div class="col-md-4 text-md-end">
+        <a href="{{ url_for('invoices_list') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-receipt"></i> All Invoices
+        </a>
+    </div>
+</div>
+
+<!-- Summary Cards -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card bg-primary text-white shadow-sm">
+            <div class="card-body text-center">
+                <h6 class="text-white-50">TOTAL CUSTOMERS</h6>
+                <h2 class="mb-0">{{ customers|length }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-success text-white shadow-sm">
+            <div class="card-body text-center">
+                <h6 class="text-white-50">TOTAL INVOICED</h6>
+                <h2 class="mb-0">KSh {{ "{:,.0f}".format(customers|sum(attribute='total_invoiced')) }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-info text-white shadow-sm">
+            <div class="card-body text-center">
+                <h6 class="text-white-50">TOTAL PAID</h6>
+                <h2 class="mb-0">KSh {{ "{:,.0f}".format(customers|sum(attribute='total_paid')) }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-danger text-white shadow-sm">
+            <div class="card-body text-center">
+                <h6 class="text-white-50">OUTSTANDING</h6>
+                <h2 class="mb-0">KSh {{ "{:,.0f}".format(customers|sum(attribute='outstanding')) }}</h2>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Customers Table -->
+{% if customers %}
+<div class="card shadow-sm">
+    <div class="card-header bg-light">
+        <div class="d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="bi bi-people"></i> Customer Folders ({{ customers|length }})</h5>
+            <input type="text" id="searchInput" class="form-control w-25" placeholder="Search customers...">
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0" id="customersTable">
+                <thead class="table-light">
+                    <tr>
+                        <th>Customer Name</th>
+                        <th>Contact</th>
+                        <th>Location</th>
+                        <th>KRA PIN</th>
+                        <th>Total Invoices</th>
+                        <th>Total Invoiced</th>
+                        <th>Total Paid</th>
+                        <th>Outstanding</th>
+                        <th>Last Invoice</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for customer in customers %}
+                    <tr>
+                        <td class="fw-bold">
+                            <i class="bi bi-person-circle"></i> {{ customer.name }}
+                        </td>
+                        <td>
+                            {% if customer.phone %}
+                            <i class="bi bi-telephone"></i> {{ customer.phone }}<br>
+                            {% endif %}
+                            {% if customer.email %}
+                            <i class="bi bi-envelope"></i> {{ customer.email }}
+                            {% endif %}
+                        </td>
+                        <td>{{ customer.city or '—' }}</td>
+                        <td>{{ customer.kra_pin or '—' }}</td>
+                        <td><span class="badge bg-primary">{{ customer.total_invoices }}</span></td>
+                        <td class="fw-bold">KSh {{ "{:,.2f}".format(customer.total_invoiced) }}</td>
+                        <td class="text-success">KSh {{ "{:,.2f}".format(customer.total_paid) }}</td>
+                        <td class="{% if customer.outstanding > 0 %}text-danger fw-bold{% else %}text-success{% endif %}">
+                            KSh {{ "{:,.2f}".format(customer.outstanding) }}
+                        </td>
+                        <td>{{ customer.last_invoice_date.strftime('%b %d, %Y') if customer.last_invoice_date else '—' }}</td>
+                        <td>
+                            <a href="{{ url_for('customer_folder', customer_name=customer.name) }}" 
+                               class="btn btn-sm btn-primary">
+                                <i class="bi bi-folder-open"></i> Open Folder
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="card shadow-sm">
+    <div class="card-body text-center py-5">
+        <i class="bi bi-people" style="font-size: 4rem; color: #dee2e6;"></i>
+        <h4 class="mt-3 text-muted">No Customers Yet</h4>
+        <p class="text-muted">Customers will appear here after creating invoices</p>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Search functionality
+document.getElementById('searchInput').addEventListener('keyup', function() {
+    const searchValue = this.value.toLowerCase();
+    const table = document.getElementById('customersTable');
+    const rows = table.getElementsByTagName('tbody')[0].getElementsByTagName('tr');
+    
+    for (let row of rows) {
+        const text = row.textContent.toLowerCase();
+        row.style.display = text.includes(searchValue) ? '' : 'none';
+    }
+});
+</script>
+{% endblock %}
